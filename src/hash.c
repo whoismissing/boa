@@ -398,6 +398,23 @@ unsigned get_mime_hash_value(const char *extension)
     return boa_hash(extension) % MIME_HASHTABLE_SIZE;
 }
 
+#ifdef __MUSL__
+static char *basename(const char *path)
+{
+	register const char *s;
+	register const char *p;
+
+	p = s = path;
+
+	while (*s) {
+		if (*s++ == '/') {
+			p = s;
+		}
+	}
+
+	return (char *) p;
+}
+#endif
 /*
  * Name: get_mime_type
  *
@@ -432,8 +449,12 @@ char *get_mime_type(const char *filename)
      *  foo. (in which case extension[1] == '\0')
      */
     /* extension[0] *can't* be NIL */
-    if (!extension || extension[1] == '\0')
+    if (!extension || extension[1] == '\0'){
+		if( !extension&& !strncmp(basename(filename), "form", 4) ){
+			return "text/html";
+		}
         return default_type;
+    }
 
     /* make sure we hash on the 'bar' not the '.bar' */
     ++extension;

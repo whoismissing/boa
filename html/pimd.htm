@@ -1,0 +1,517 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>PIMD-SM/SSM Setup</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script>
+
+function deleteClick()
+{
+  if ( !confirm('Do you really want to delete the selected entry?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm('Do you really want to delete the all entries?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function checkIpSubnetAddr(field, msg)
+{
+  if (field.value=="") {
+	alert("IP address cannot be empty! It should be filled with 4 digit numbers as xxx.xxx.xxx.xxx.");
+	field.value = field.defaultValue;
+	field.focus();
+	return false;
+  }
+   if ( validateKey(field.value) == 0) {
+      alert(msg + ' value. It should be the decimal number (0-9).');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,1,1,255) ) {
+      alert(msg+' range in 1st digit. It should be 1-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,2,0,255) ) {
+      alert(msg + ' range in 2nd digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,3,0,255) ) {
+      alert(msg + ' range in 3rd digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,4,0,255) ) {
+      alert(msg + ' range in 4th digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   return true;
+}
+
+
+
+function pimdsetClick()
+{
+   var t1; 	
+   var first_ip;
+   var route_meteric;
+
+
+
+    if (document.pimdset.pimd_on.checked) {
+	t1 = parseInt(document.pimdset.bsr_candidate_priority.value);
+	 if((document.pimdset.bsr_candidate_priority.value!="")&&((t1 > 255 ) || (t1 < 0))){
+  		alert('Invalid bsr_candidate_priority value! The range of cost is 0 ~ 255.');
+  	return false;
+  	}
+	t1 = parseInt(document.pimdset.rp_candidate_priority.value);
+	 if((document.pimdset.rp_candidate_priority.value!="")&&((t1 > 255 ) || (t1 < 0))){
+  		alert('Invalid rp_candidate_priority value! The range of cost is 0 ~ 255.');
+  	return false;
+  	}
+	 t1 = parseInt(document.pimdset.rp_candidate_time.value);
+	 if((document.pimdset.rp_candidate_time.value!="")&&((t1 > 16383 ) || (t1 < 10))){
+  		alert('Invalid rp_candidate_time value! The range of cost is 10 ~ 16383.');
+  	return false;
+  	}
+    }
+
+   return true;
+
+
+}
+
+function disableRpGroupDelButton()
+{
+	disableButton(document.rp_candidate_group.deleterp_group);
+	disableButton(document.rp_candidate_group.deleteallrp_group);
+}
+
+
+function disableifDelButton()
+{
+	disableButton(document.interfacesetup.deleteif);
+	disableButton(document.interfacesetup.deleteallif);
+}
+
+function pimd_on_update()
+{
+ if (document.pimdset.pimd_on.checked) {
+ 		enableTextField(document.pimdset.bsr_candidate_priority);
+		enableTextField(document.pimdset.rp_candidate_priority);
+		enableTextField(document.pimdset.rp_candidate_time);
+		enableTextField(document.rpsetup.ip_address);
+		enableTextField(document.rpsetup.group_address);
+		enableTextField(document.rpsetup.group_mask_len);
+ 	
+  }
+  else {
+ 		disableTextField(document.pimdset.bsr_candidate_priority);
+		disableTextField(document.pimdset.rp_candidate_priority);
+		disableTextField(document.pimdset.rp_candidate_time);
+		disableTextField(document.rpsetup.ip_address);
+		disableTextField(document.rpsetup.group_address);
+		disableTextField(document.rpsetup.group_mask_len);
+	
+  
+  }
+
+}
+function AddRp_candidate_group()
+{
+	var t1; 
+	if(document.rp_candidate_group.rp_group_address.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.rp_candidate_group.rp_group_address, 'Invalid rp_group_address  value! ') == false )
+			return false;
+		 t1 = parseInt(document.rp_candidate_group.rp_group_mask_len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid rp_group_mask_len value!');
+  			return false;
+  		}
+	}
+
+	return true;
+
+}
+function addinterfaceClick()
+{
+	var t1; 
+	 t1 = parseInt(document.interfacesetup.dr_priority.value);
+	if(((t1 > 4294967294 ) || (t1 < 1))){
+  		alert('Invalid dr_priority value!');
+  		return false;
+  	}
+	if(document.interfacesetup.alternative_network.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.interfacesetup.alternative_network, 'Invalid alternative_network  value! ') == false )
+			return false;
+		 t1 = parseInt(document.interfacesetup.alternative_network_mask_len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid alternative_network_mask_len value!');
+  			return false;
+  		}
+	}
+	if(document.interfacesetup.filter_network.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.interfacesetup.filter_network, 'Invalid filter_network  value! ') == false )
+			return false;
+		 t1 = parseInt(document.interfacesetup.filter_network_mask_len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid filter_network_mask_len value!');
+  			return false;
+  		}
+	}
+	return true;
+  	
+}
+function rpsetupClick()
+{	var t1; 
+
+if(document.rpsetup.ip_address.value!="")
+{
+  if ( checkIpSubnetAddr(document.rpsetup.ip_address, 'Invalid ip_address  value! ') == false )
+              return false;
+}
+if(document.rpsetup.group_address.value!="")
+{
+  if ( checkIpSubnetAddr(document.rpsetup.group_address, 'Invalid group_address  value! ') == false )
+              return false;
+	t1=parseInt(document.rpsetup.group_mask_len.value);
+   if(((t1 > 32 ) || (t1 < 1))){
+  		alert('Invalid group_mask_len value!');
+  	return false;
+  	}
+}
+
+   return true;
+}
+
+function debug_update()
+{
+ if (document.pimdset.pimd_debug.checked) {
+	enableButton(document.pimdset.showdebug);
+  }
+  else {
+ 
+	disableButton(document.pimdset.showdebug);
+  
+  }
+
+}
+
+function StaticRouteTblClick(url) {
+		openWindow(url, 'pimddebug',1000, 800 );
+}
+function pimd_LoadSetting()
+{
+	var dF=document.pimdset;
+	var pimd_enabled=<%getIndex("pimd_on");%>;
+	if(pimd_enabled==1)	
+	{
+		dF.pimd_on.checked=true;
+		enableTextField(document.pimdset.bsr_candidate_priority);
+		enableTextField(document.pimdset.rp_candidate_priority);
+		enableTextField(document.pimdset.rp_candidate_time);
+		enableTextField(document.rpsetup.ip_address);
+		enableTextField(document.rpsetup.group_address);
+		enableTextField(document.rpsetup.group_mask_len);
+	
+	
+			
+	}
+	else
+	{
+	
+		dF.pimd_on.checked=false;
+		disableTextField(document.pimdset.bsr_candidate_priority);
+		disableTextField(document.pimdset.rp_candidate_priority);
+		disableTextField(document.pimdset.rp_candidate_time);
+		disableTextField(document.rpsetup.ip_address);
+		disableTextField(document.rpsetup.group_address);
+		disableTextField(document.rpsetup.group_mask_len);
+	
+	
+		
+	}
+	if ( <% getIndex("PimdRpGroupNum"); %> == 0 )
+		disableRpGroupDelButton();
+	if ( <% getIndex("PimdIfNum"); %> == 0 )
+		disableifDelButton();
+
+}
+</script>
+</head>
+<body onload="pimd_LoadSetting();">
+<blockquote>
+
+
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+<h2><font color="#0000FF">Pimd Routing Setup</font></h2>
+
+
+<tr><td colspan= 2><font size=2>
+ This page is used to setup pimd routing.If you want use the default value,just enable pimd only.
+</font></td></tr>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+
+
+<form action=/boafrm/formpimdroute method=POST name="pimdset">
+<tr><td><font size=2><b>PIMD SETUP</b></font></td></tr>
+	<tr>
+		<td><font size=2>PIMD:</font></td>
+		<td><font size=2>
+	
+   	<input type="checkbox" name="pimd_on" value="ON" onClick="pimd_on_update()">&nbsp;&nbsp;Enable </b>
+   	
+
+		</font></td>
+		
+	</tr>
+
+	<tr>
+       <td width="30%"><font size=2>bsr-candidate priority(0-255):</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="bsr_candidate_priority" size="18" maxlength="15" value="<%getIndex("bsr_candidate_priority");%>">
+     
+      </td>
+   
+    </tr>
+    <tr>
+       <td width="30%"><font size=2>rp-candidate priority(0-255):</td>
+       <td width="100%"><font size=2>
+        <input type="text" name="rp_candidate_priority" size="18" maxlength="60" value="<%getIndex("rp_candidate_priority");%>">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="30%"><font size=2>rp-candidate time(10-16383):</td>
+       <td width="100%"><font size=2>
+        <input type="text" name="rp_candidate_time" size="18" maxlength="60" value="<%getIndex("rp_candidate_time");%>">
+     
+      </td>
+   
+    </tr>
+<tr>
+	<br><td><input type="submit" value="Apply Changes" name="pimdset" onClick="return pimdsetClick()"></td>
+</tr>
+<tr>
+	<td colspan= 2><font size=2>
+ [After modify the config,must restart the pimd]
+</font></td>
+<td><input type="submit" value="restart" name="restart" ></td>
+</tr>
+<input type="hidden" value="/pimd.htm" name="submit-url">
+  </table>      
+</form>
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> Static rendez-vous point SETUP</b></font></td></tr>
+<form action=/boafrm/formpimdroute method=POST name="rpsetup">
+
+
+<tr>
+       <td width="30%"><font size=2>ip address:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="ip_address" size="18" maxlength="16" value="<%getIndex("pimd_ip_address");%>">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="30%"><font size=2>group address:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="group_address" size="18" maxlength="16" value="<%getIndex("pimd_group_address");%>">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="30%"><font size=2>group mask len:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="group_mask_len" size="18" maxlength="16" value="<%getIndex("pimd_group_mask_len");%>">
+     
+      </td>
+   
+    </tr>
+
+
+
+   <tr><td colspan=2>
+     <p><input type="submit" value="Apply" name="rpapply" onClick="return rpsetupClick()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+
+</table>
+  <input type="hidden" value="/pimd.htm" name="submit-url">
+</form>
+  
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> Rp-Candidate Group SETUP</b></font></td></tr>
+<form action=/boafrm/formpimdroute method=POST name="rp_candidate_group">
+<tr>
+       <td width="30%"><font size=2>group address:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="rp_group_address" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="30%"><font size=2>group mask len:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="rp_group_mask_len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+
+   <tr><td colspan=2>
+     <p><input type="submit" value="Add" name="add_rp_candidate_group" onClick="return AddRp_candidate_group()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+
+</table>
+
+<table border="0" width=500>
+  <tr><font size=2>Group  Table:</font></tr>
+  <% PimdRpList(); %>
+  </table>
+<input type="submit" value="Delete Selected" name="deleterp_group" onClick="return deleteClick()">&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteallrp_group" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <input type="hidden" value="/pimd.htm" name="submit-url">
+</form>
+
+
+
+
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> INTERFACE SETUP</b></font></td></tr>
+<form action=/boafrm/formpimdroute method=POST name="interfacesetup">
+
+    <tr>
+		<td width="30%"><font size=2>Interface:</td>
+		<td>
+			<select name="pimd_if">
+			<% interfaceList(); %>
+			</select>
+		</td>
+	</tr>
+
+
+<tr>
+
+       <td width="30%"><font size=2>dr-priority:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="dr_priority" size="18" maxlength="15" value="">
+     
+      </td>
+   
+    </tr>
+
+	<tr>
+       <td width="30%"><font size=2>alternative network:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="alternative_network" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="30%"><font size=2>network mask len:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="alternative_network_mask_len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="30%"><font size=2>filter Group:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="filter_network" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="30%"><font size=2>network mask len:</td>
+       <td width="70%"><font size=2>
+        <input type="text" name="filter_network_mask_len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+
+
+
+
+
+   <tr><td colspan=2>
+     <p><input type="submit" value="Interface Add" name="addinterface" onClick="return addinterfaceClick()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+
+</table>
+
+<table border="0" width=800>
+  <tr><font size=2>Interface  Table:</font></tr>
+  <% PimdInterfaceList(); %>
+  </table>
+<input type="submit" value="Delete Selected" name="deleteif" onClick="return deleteClick()">&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteallif" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <input type="hidden" value="/pimd.htm" name="submit-url">
+</form>
+ <script>
+	if ( <% getIndex("PimdRpGroupNum"); %> == 0 )
+		disableRpGroupDelButton();
+	if ( <% getIndex("PimdIfNum"); %> == 0 )
+		disableifDelButton();
+ </script>
+
+  
+
+	</blockquote>
+</body>
+
+</html>
+

@@ -24,6 +24,9 @@
 /* $Id: pipe.c,v 1.39.2.16 2005/02/22 14:13:03 jnelson Exp $*/
 
 #include "boa.h"
+#ifdef BOA_WITH_OPENSSL
+#include <openssl/ssl.h>
+#endif
 
 /*
  * Name: read_from_pipe
@@ -37,10 +40,14 @@
 
 int read_from_pipe(request * req)
 {
-    off_t bytes_read; /* signed */
-    off_t bytes_to_read; /* unsigned */ /* XXX really? */
-
+    int bytes_read; /* signed */
+    unsigned int bytes_to_read; /* unsigned */
+	printf("%s %d\n",__FUNCTION__,__LINE__);
+#ifdef SUPPORT_ASP
+    bytes_to_read = req->max_buffer_size - (req->header_end - (char *)req->buffer);
+#else
     bytes_to_read = BUFFER_SIZE - (req->header_end - req->buffer - 1);
+#endif
 
     if (bytes_to_read == 0) {   /* buffer full */
         if (req->cgi_status == CGI_PARSE) { /* got+parsed header */
@@ -56,7 +63,15 @@ int read_from_pipe(request * req)
         return 1;
     }
 
+	/*
+    if(req -> filesize == 0)
+	sleep(2);
+	*/
+
     bytes_read = read(req->data_fd, req->header_end, bytes_to_read);
+    if (req->cgi_type == CGI && bytes_read>0)
+	req -> filesize += bytes_read;
+
 #ifdef FASCIST_LOGGING
     if (bytes_read > 0) {
         *(req->header_end + bytes_read) = '\0';
@@ -128,8 +143,9 @@ int read_from_pipe(request * req)
 
 int write_from_pipe(request * req)
 {
-    off_t bytes_written;
-    off_t bytes_to_write = req->header_end - req->header_line;
+//	printf("%s\n",__FUNCTION__);
+    int bytes_written;
+    size_t bytes_to_write = req->header_end - req->header_line;
 
     if (bytes_to_write == 0) {
         if (req->cgi_status == CGI_DONE)
@@ -140,7 +156,47 @@ int write_from_pipe(request * req)
         return 1;
     }
 
+#ifdef BOA_WITH_OPENSSL
+    if(req->ssl == NULL)
+#endif
+    {
+#ifdef BOA_WITH_MBEDTLS
+        if(req->mbedtls_client_fd.fd!=-1)
+        {
+            //bytes_written = mbedtls_ssl_write(&mbedtls_ssl_ctx, req->header_line, bytes_to_write);
+            int ret;
+            while( ( ret = mbedtls_ssl_write( &(req->mbedtls_ssl_ctx), req->header_line, bytes_to_write ) ) <= 0 )
+            {
+                if( ret == MBEDTLS_ERR_NET_CONN_RESET )
+                {
+                    mbedtls_printf( " failed\n  ! peer closed the connection\n\n" );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+
+                if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+                {
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+            }
+            bytes_written = ret;
+        }else
+#endif
+        {
     bytes_written = write(req->fd, req->header_line, bytes_to_write);
+    }
+        //printf("[%s:%d] write %d bytes\n", __FUNCTION__, __LINE__, bytes_written);
+    }
+#ifdef BOA_WITH_OPENSSL
+    else{
+        //printf("<%s:%d>SSL_write\n",__FUNCTION__, __LINE__);
+	bytes_written = SSL_write(req->ssl, req->header_line, bytes_to_write);
+    }
+#endif
 
     if (bytes_written == -1) {
         if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -170,10 +226,15 @@ int write_from_pipe(request * req)
 #ifdef HAVE_SENDFILE
 int io_shuffle_sendfile(request * req)
 {
-    off_t sendfile_offset;
-    off_t bytes_written;
-    off_t bytes_to_write;
-
+#if defined(ENABLE_LFS)
+	off64_t bytes_written;
+    	off64_t bytes_to_write;
+    	off64_t sendfile_offset;
+#else
+    	int bytes_written;
+    	size_t bytes_to_write;
+    	off_t sendfile_offset;
+#endif
     if (req->method == M_HEAD) {
         return complete_response(req);
     }
@@ -198,8 +259,13 @@ retrysendfile:
 	if (sendfile_offset < 0) {
 		req->status = DEAD;
 		log_error_doc(req);
+	#if defined(ENABLE_LFS)
+		fprintf(stderr, "impossible offset (%llu) requested of sendfile\n",
+				 req->ranges->start);
+	#else
 		fprintf(stderr, "impossible offset (%lu) requested of sendfile\n",
 				 req->ranges->start);
+	#endif
 		return 0;
 	}
         bytes_written = sendfile(req->fd, req->data_fd,
@@ -208,18 +274,21 @@ retrysendfile:
 	if (sendfile_offset < 0) {
 		req->status = DEAD;
 		log_error_doc(req);
+		#if defined(ENABLE_LFS)
+		fprintf(stderr,
+			"bad craziness in sendfile offset, returned %lld\n",
+			sendfile_offset);
+		#else
 		fprintf(stderr,
 			"bad craziness in sendfile offset, returned %ld\n",
 			(long) sendfile_offset);
+		#endif	
 		return 0;
 	}
 	req->ranges->start = sendfile_offset;
         if (bytes_written < 0) {
-	    if (errno == ENOSYS) {
-		return io_shuffle(req);
-	    } else if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                /* request blocked at the pipe level, but keep going */
-                return -1;
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                return -1;          /* request blocked at the pipe level, but keep going */
             } else if (errno == EINTR) {
                 goto retrysendfile;
             } else {
@@ -267,9 +336,13 @@ retrysendfile:
 
 int io_shuffle(request * req)
 {
-    off_t bytes_to_read;
-    off_t bytes_written, bytes_to_write;
-
+#if defined(ENABLE_LFS)
+	off64_t bytes_to_read;
+    off64_t bytes_written, bytes_to_write;
+#else
+    int bytes_to_read;
+    int bytes_written, bytes_to_write;
+#endif
     if (req->method == M_HEAD) {
         return complete_response(req);
     }
@@ -288,8 +361,13 @@ int io_shuffle(request * req)
         bytes_to_read = bytes_to_write;
 
     if (bytes_to_read > 0 && req->data_fd) {
-        off_t bytes_read;
+#if defined(ENABLE_LFS)
+		off64_t bytes_read;
+        off64_t temp;
+#else
+        int bytes_read;
         off_t temp;
+#endif
 
         temp = lseek(req->data_fd, req->ranges->start, SEEK_SET);
         if (temp < 0) {
@@ -341,8 +419,48 @@ int io_shuffle(request * req)
     }
 
   restartwrite:
-    bytes_written =
-        write(req->fd, req->buffer + req->buffer_start, bytes_to_write);
+#ifdef BOA_WITH_OPENSSL
+	if(req->ssl==NULL)
+#endif
+    {
+#ifdef BOA_WITH_MBEDTLS
+        if(req->mbedtls_client_fd.fd!=-1)
+        {
+            //bytes_written = mbedtls_ssl_write(&mbedtls_ssl_ctx, req->buffer + req->buffer_start, bytes_to_write);
+        	int ret;
+            while( ( ret = mbedtls_ssl_write( &(req->mbedtls_ssl_ctx), req->buffer + req->buffer_start, bytes_to_write ) ) <= 0 )
+            {
+                if( ret == MBEDTLS_ERR_NET_CONN_RESET )
+                {
+                    mbedtls_printf( " failed\n  ! peer closed the connection\n\n" );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+
+                if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+                {
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+            }
+            bytes_written = ret;
+		}else
+#endif
+        {
+        bytes_written =
+            write(req->fd, req->buffer + req->buffer_start, bytes_to_write);
+    }
+        //printf("[%s:%d] write %d bytes\n", __FUNCTION__, __LINE__, bytes_written);
+    }
+#ifdef BOA_WITH_OPENSSL
+	else{
+		//printf("<%s:%d>SSL_write\n",__FUNCTION__,__LINE__);
+		bytes_written = SSL_write(req->ssl, req->buffer + req->buffer_start, bytes_to_write);
+	}
+#endif
 
     if (bytes_written == -1) {
         if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -352,7 +470,7 @@ int io_shuffle(request * req)
         else {
             req->status = DEAD;
             log_error_doc(req);
-            perror("ioshuffle write");
+            //perror("ioshuffle write");
             return 0;
         }
     } else if (bytes_written == 0) {

@@ -1,0 +1,488 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>Mrouted Setup</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script>
+
+function deleteClick()
+{
+  if ( !confirm('Do you really want to delete the selected entry?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm('Do you really want to delete the all entries?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function checkIpSubnetAddr(field, msg)
+{
+  if (field.value=="") {
+	alert("IP address cannot be empty! It should be filled with 4 digit numbers as xxx.xxx.xxx.xxx.");
+	field.value = field.defaultValue;
+	field.focus();
+	return false;
+  }
+   if ( validateKey(field.value) == 0) {
+      alert(msg + ' value. It should be the decimal number (0-9).');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,1,1,255) ) {
+      alert(msg+' range in 1st digit. It should be 1-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,2,0,255) ) {
+      alert(msg + ' range in 2nd digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,3,0,255) ) {
+      alert(msg + ' range in 3rd digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   if ( !checkDigitRange(field.value,4,0,255) ) {
+      alert(msg + ' range in 4th digit. It should be 0-255.');
+      field.value = field.defaultValue;
+      field.focus();
+      return false;
+   }
+   return true;
+}
+
+function AddIf()
+{
+	var t1; 
+	t1 = parseInt(document.Ifsetup.If_Metric.value);
+	 if((document.Ifsetup.If_Metric.value!="")&&((t1 > 31 ) || (t1 < 1))){
+  		alert('Invalid If_Metric value! The range of value is 1 ~ 31.');
+  	return false;
+  	}
+	 
+	 t1 = parseInt(document.Ifsetup.If_Shreshold.value);
+	 if((document.Ifsetup.If_Shreshold.value!="")&&((t1 > 64 ) || (t1 < 1))){
+  		alert('Invalid If_Shreshold value! The range of value is 1 ~ 64.');
+  	return false;
+  	}
+
+	 t1 = parseInt(document.Ifsetup.If_RateLimit.value);
+	 if((document.Ifsetup.If_RateLimit.value!="")&&((t1 < 0))){
+  		alert('Invalid If_RateLimit value!');
+  	return false;
+  	}
+
+	 
+	if(document.Ifsetup.If_Boundray_Ip.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.Ifsetup.If_Boundray_Ip, 'Invalid If_Boundray_Ip  value! ') == false )
+			return false;
+		 t1 = parseInt(document.Ifsetup.If_Boundray_Mask_Len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid If_Boundray_Mask_Len value!');
+  			return false;
+  		}
+	}
+	
+	
+
+
+}
+function addAltnetClick()
+{
+	var t1; 
+	if(document.Altnetsetup.If_AltNet_Ip.value=="")
+	{
+		return false;
+	}
+	if(document.Altnetsetup.If_AltNet_Ip.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.Altnetsetup.If_AltNet_Ip, 'Invalid If_AltNet_Ip  value! ') == false )
+			return false;
+		 t1 = parseInt(document.Altnetsetup.If_AltNet_Mask_Len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid If_AltNet_Mask_Len value!');
+  			return false;
+  		}
+	}
+	return true;
+
+}
+function addTunnelClick()
+{
+	var t1; 
+	if(document.Tunnelsetup.Tunnel_Local_Ip.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.Tunnelsetup.Tunnel_Local_Ip, 'Invalid Tunnel_Local_Ip  value! ') == false )
+			return false;
+		
+	}
+	if(document.Tunnelsetup.Tunnel_Remote_Ip.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.Tunnelsetup.Tunnel_Remote_Ip, 'Invalid Tunnel_Remote_Ip  value! ') == false )
+			return false;
+		
+	}
+	t1 = parseInt(document.Tunnelsetup.Tunnel_Metric.value);
+	 if((document.Tunnelsetup.Tunnel_Metric.value!="")&&((t1 > 31 ) || (t1 < 1))){
+  		alert('Invalid Tunnel_Metric value! The range of value is 1 ~ 31.');
+  	return false;
+  	}
+	 
+	 t1 = parseInt(document.Tunnelsetup.Tunnel_Shreshold.value);
+	 if((document.Tunnelsetup.Tunnel_Shreshold.value!="")&&((t1 > 64 ) || (t1 < 1))){
+  		alert('Invalid Tunnel_Shreshold value! The range of value is 1 ~ 64.');
+  	return false;
+  	}
+
+	 t1 = parseInt(document.Tunnelsetup.Tunnel_RateLimit.value);
+	 if((document.Tunnelsetup.Tunnel_RateLimit.value!="")&&((t1 < 0))){
+  		alert('Invalid Tunnel_RateLimit value!');
+  	return false;
+  	}
+
+	 
+	if(document.Tunnelsetup.Tunnel_Boundray_Ip.value!="")
+	{
+ 		 if ( checkIpSubnetAddr(document.Tunnelsetup.Tunnel_Boundray_Ip, 'Invalid Tunnel_Boundray_Ip  value! ') == false )
+			return false;
+		 t1 = parseInt(document.Tunnelsetup.Tunnel_Boundray_Ip_Len.value);
+		  if(((t1 > 32 ) || (t1 < 1))){
+  			alert('Invalid Tunnel_Boundray_Ip_Len value!');
+  			return false;
+  		}
+	}
+	return true;
+
+}
+
+function disableTunnelDelButton()
+{
+	disableButton(document.Tunnelsetup.deleteTunnel);
+	disableButton(document.Tunnelsetup.deleteAllTunnel);
+}
+function disableAltnetDelButton()
+{
+	disableButton(document.Altnetsetup.deleteAltnet);
+	disableButton(document.Altnetsetup.deleteAllAltnet);
+}
+
+function disableIfDelButton()
+{
+	disableButton(document.Ifsetup.delete_If);
+	disableButton(document.Ifsetup.deleteall_If);
+}
+
+function mrouted_LoadSetting()
+{
+	var dF=document.mroutedset;
+	var mrouted_enabled=<%getIndex("mrouted_on");%>;
+	if(mrouted_enabled==1)	
+	{
+		dF.mrouted_on.checked=true;
+	}
+	else
+	{
+	
+		dF.mrouted_on.checked=false;
+	}
+	if ( <% getIndex("mroutedIfNum"); %> == 0 )
+		disableIfDelButton();
+	if ( <% getIndex("mroutedTunnelNum"); %> == 0 )
+		disableTunnelDelButton();
+	if ( <% getIndex("mroutedAltnetNum"); %> == 0 )
+		disableAltnetDelButton();
+
+}
+</script>
+</head>
+<body onload="mrouted_LoadSetting();">
+<blockquote>
+
+
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+<h2><font color="#0000FF">Mrouted Routing Setup</font></h2>
+
+
+<tr><td colspan= 2><font size=2>
+ This page is used to setup mrouted routing.If you want use the default value,just enable mrouted only.
+</font></td></tr>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+
+
+<form action=/boafrm/formmroutedroute method=POST name="mroutedset">
+<tr><td><font size=2><b>MROUTED SETUP</b></font></td></tr>
+	<tr>
+		<td><font size=2>mrouted:</font></td>
+		<td><font size=2>
+	
+   	<input type="checkbox" name="mrouted_on" value="ON" onClick="">&nbsp;&nbsp;Enable </b>
+   	
+
+		</font></td>
+		
+	</tr>
+<tr>
+	<br><td><input type="submit" value="Apply Changes" name="mroutedset" onClick=""></td>
+</tr>
+<tr>
+	<td colspan= 2><font size=2>
+ [After modify the config,must restart the mrouted]
+</font></td>
+<td><input type="submit" value="restart" name="restart" ></td>
+</tr>
+<input type="hidden" value="/mrouted.htm" name="submit-url">
+  </table>      
+</form>
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> Mrouted Interface SETUP</b></font></td></tr>
+<form action=/boafrm/formmroutedroute method=POST name="Ifsetup">
+<tr>
+		<td width="40%"><font size=2>Interface:</td>
+		<td>
+			<select name="mrouted_if">
+			<% interfaceList(); %>
+			</select>
+		</td>
+	</tr>
+
+
+
+
+<tr>
+       <td width="40%"><font size=2>Metric:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_Metric" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="40%"><font size=2>Shreshold:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_Shreshold" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="40%"><font size=2>RateLimit:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_RateLimit" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+ <tr>
+       <td width="40%"><font size=2>Boundray Net(239.X.X.X):</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_Boundray_Ip" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+ <tr>
+       <td width="40%"><font size=2>Mask Len:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_Boundary_Mask_Len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+<tr><td colspan=2>
+     <p><input type="submit" value="Add" name="add_If" onClick="return AddIf()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+    
+
+</table>
+
+<table border="0" width=700>
+  <tr><font size=2>Interface  Table:</font></tr>
+  <% mroutedIfList(); %>
+  </table>
+<input type="submit" value="Delete Selected" name="delete_If" onClick="return deleteClick()">&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteall_If" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <input type="hidden" value="/mrouted.htm" name="submit-url">
+</form>
+
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> Interface Altnet SETUP</b></font></td></tr>
+<form action=/boafrm/formmroutedroute method=POST name="Altnetsetup">
+<tr>
+		<td width="40%"><font size=2>Interface:</td>
+		<td>
+			<select name="Altnet_if">
+			<% interfaceList(); %>
+			</select>
+		</td>
+	</tr>
+    
+<tr>
+       <td width="40%"><font size=2>AltNet Net:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_AltNet_Ip" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+ <tr>
+       <td width="40%"><font size=2>Mask Len:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="If_AltNet_Mask_Len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+ 
+
+   <tr><td colspan=2>
+     <p><input type="submit" value="Add" name="addAltnet" onClick="return addAltnetClick()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+
+</table>
+
+<table border="0" width=500>
+  <tr><font size=2>Altnet  Table:</font></tr>
+  <% mroutedAltnetList(); %>
+  </table>
+<input type="submit" value="Delete Selected" name="deleteAltnet" onClick="return deleteClick()">&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteAllAltnet" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <input type="hidden" value="/mrouted.htm" name="submit-url">
+</form>
+
+
+
+
+<table border="0" width=500>
+
+<tr><td colspan=2><hr size=1 noshade align=top></td></tr>
+<tr><td><font size=2><b> Tunnel SETUP</b></font></td></tr>
+<form action=/boafrm/formmroutedroute method=POST name="Tunnelsetup">
+
+    
+
+       <td width="40%"><font size=2>Local Ip:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Local_Ip" size="18" maxlength="15" value="">
+     
+      </td>
+   
+    </tr>
+
+	<tr>
+       <td width="40%"><font size=2>Remote Ip:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Remote_Ip" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="40%"><font size=2>Metric:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Metric" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="40%"><font size=2>Shreshold:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Shreshold" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+ <tr>
+       <td width="40%"><font size=2>Rate Limit:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_RateLimit" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+
+
+    
+
+ <tr>
+       <td width="40%"><font size=2>Boundary Net(239.X.X.X):</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Boundray_Ip" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+<tr>
+       <td width="40%"><font size=2>Ip Mask Len:</td>
+       <td width="60%"><font size=2>
+        <input type="text" name="Tunnel_Boundray_Ip_Len" size="18" maxlength="16" value="">
+     
+      </td>
+   
+    </tr>
+
+   <tr><td colspan=2>
+     <p><input type="submit" value="Add" name="addtunnel" onClick="return addTunnelClick()">&nbsp;&nbsp;        
+     </p>
+	
+     </td></tr>
+
+</table>
+
+<table border="0" width=950>
+  <tr><font size=2>Tunnel  Table:</font></tr>
+  <% mroutedTunnelList(); %>
+  </table>
+<input type="submit" value="Delete Selected" name="deleteTunnel" onClick="return deleteClick()">&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteAllTunnel" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <input type="hidden" value="/mrouted.htm" name="submit-url">
+</form>
+ <script>
+	if ( <% getIndex("mroutedIfNum"); %> == 0 )
+		disableIfDelButton();
+	if ( <% getIndex("mroutedTunnelNum"); %> == 0 )
+		disableTunnelDelButton();
+	if ( <% getIndex("mroutedAltnetNum"); %> == 0 )
+		disableAltnetDelButton();
+ </script>
+
+  
+
+	</blockquote>
+</body>
+
+</html>
+

@@ -83,12 +83,25 @@ int bind_server(int sock, char *ip, unsigned int port)
 char *ascii_sockaddr(struct SOCKADDR *s, char *dest, unsigned int len)
 {
 #ifdef INET6
+	struct sockaddr_in6 *addr_v6 = (struct sockaddr_in6 *)s;
+	inet_ntop(AF_INET6,(void *)&(addr_v6->sin6_addr),dest, len);
+
+#if 0
     if (getnameinfo((struct sockaddr *) s,
                     sizeof (struct SOCKADDR),
                     dest, len, NULL, 0, NI_NUMERICHOST)) {
         fprintf(stderr, "[IPv6] getnameinfo failed\n");
         *dest = '\0';
     }
+#endif
+	
+	if(strstr(dest,"::ffff:"))
+	{
+		char ipv4Dst[BOA_NI_MAXHOST]={0};
+		strcpy(ipv4Dst,dest+strlen("::ffff:"));
+		strcpy(dest,ipv4Dst);
+	}
+		
 #ifdef WHEN_DOES_THIS_APPLY
 #error Dont use memmove
     if ((s->__ss_family == PF_INET6) &&

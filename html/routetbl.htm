@@ -1,0 +1,45 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+<% getIndex("no-cache"); %>
+<title>路由表</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<% getInfo("include_css"); %>
+</head>
+
+<body>
+<blockquote>
+<h2> <script>dw(routetbl_header)</script> </h2>
+
+<table border=0 width="500" cellspacing=0 cellpadding=0>
+  <tr><font size=2>
+  <script>dw(routetbl_header_explain)</script>
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+</table>
+<table border='1' width="500">
+<% kernelRouteList(); %>
+</table>
+
+<table border=0 width="500" cellspacing=0 cellpadding=0>
+  <tr><font size=2>
+  <script>dw(routetbl_under_explain)</script>
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+</table>
+<table border='1' width="500">
+<% kernelRoute6List(); %>
+</table>
+
+<input type="hidden" value="/routetbl.htm" name="submit-url">
+  <p><input type="button" value="Refresh" name="refresh" onClick="javascript: window.location.reload()">&nbsp;&nbsp;
+  <script>document.refresh.value = routetbl_refresh;</script>
+  <input type="button" value=" Close " name="close" onClick="javascript: window.close();">
+  <script>document.close.value = routetbl_close;</script>
+  </p>
+</blockquote>
+</body>
+
+</html>

@@ -25,7 +25,9 @@
 #include "boa.h"
 #include "escape.h"
 
-
+#ifdef BOA_WITH_OPENSSL
+#include <openssl/ssl.h>
+#endif
 /*
  * Name: req_write
  *
@@ -77,21 +79,15 @@ int req_write_escape_http(request * req, const char *msg)
 {
     char c, *dest;
     const char *inp;
-    int left;
-    int skip = 0;
 
+    int left;
     inp = msg;
     dest = req->buffer + req->buffer_end;
     /* 3 is a guard band, since we don't check the destination pointer
      * in the middle of a transfer of up to 3 bytes */
     left = BUFFER_SIZE - req->buffer_end;
     while ((c = *inp++) && left >= 3) {
-        /* Lower the skip character count. */
-        if (skip) skip--;
-        /* If we have a '%', we skip the two follow characters. */
-        if (c == '%') skip = 2;
-
-        if (!skip && needs_escape((unsigned int) c)) {
+        if (needs_escape((unsigned int) c)) {
             *dest++ = '%';
             *dest++ = INT_TO_HEX((c >> 4) & 0xf);
             *dest++ = INT_TO_HEX(c & 0xf);
@@ -212,6 +208,7 @@ int req_write_escape_html(request * req, const char *msg)
 
 int req_flush(request * req)
 {
+    //printf("%s\n", __FUNCTION__);
     unsigned bytes_to_write;
 
     bytes_to_write = req->buffer_end - req->buffer_start;
@@ -219,10 +216,47 @@ int req_flush(request * req)
         return -2;
 
     if (bytes_to_write) {
-        off_t bytes_written;
+        int bytes_written;
 
+#ifdef BOA_WITH_OPENSSL
+	if(req->ssl == NULL)
+#endif
+	{
+#ifdef BOA_WITH_MBEDTLS
+        if(req->mbedtls_client_fd.fd!=-1)
+        {
+            while( ( bytes_written = mbedtls_ssl_write( &(req->mbedtls_ssl_ctx), req->buffer + req->buffer_start,bytes_to_write ) ) <= 0 )
+            {
+                if( bytes_written == MBEDTLS_ERR_NET_CONN_RESET )
+                {
+                    mbedtls_printf( " failed\n  ! peer closed the connection\n\n" );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+					return 0;
+                }
+
+                if( bytes_written != MBEDTLS_ERR_SSL_WANT_READ && bytes_written != MBEDTLS_ERR_SSL_WANT_WRITE )
+                {
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_write returned %d\n\n", bytes_written );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+					return 0;
+                }
+            }
+        }else
+#endif
+        {
         bytes_written = write(req->fd, req->buffer + req->buffer_start,
                               bytes_to_write);
+	}
+        //printf("[%s:%d] write %d bytes\n", __FUNCTION__, __LINE__, bytes_written);
+    }
+#ifdef BOA_WITH_OPENSSL
+	else{
+		//printf("<%s:%d>SSL_Write\n", __FUNCTION__, __LINE__);
+		bytes_written = SSL_write(req->ssl, req->buffer + req->buffer_start, bytes_to_write);
+	}
+#endif
 
         if (bytes_written < 0) {
             if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -235,7 +269,7 @@ int req_flush(request * req)
 #endif
                 {
                     log_error_doc(req);
-                    perror("buffer flush");
+                    //perror("buffer flush");
                 }
                 req->status = DEAD;
                 req->buffer_end = 0;

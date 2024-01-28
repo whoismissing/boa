@@ -24,7 +24,7 @@
 /* $Id: alias.c,v 1.70.2.20 2005/02/22 14:11:29 jnelson Exp $ */
 
 #include "boa.h"
-
+#include "apform.h"
 
 struct alias {
     char *fakename;             /* URI path to file */
@@ -92,9 +92,13 @@ void add_alias(const char *fakename, const char *realname, enum ALIAS type)
 
     fakelen = strlen(fakename);
     reallen = strlen(realname);
+
+//davidhsu
+#if 0
     if (fakelen == 0 || reallen == 0) {
         DIE("empty values sent to add_alias");
     }
+#endif
 
     hash = get_alias_hash_value(fakename);
 
@@ -146,7 +150,19 @@ void add_alias(const char *fakename, const char *realname, enum ALIAS type)
                 __FILE__, __LINE__, fakename, realname, hash);
     }
 }
-
+#ifdef BOA_PHP_SUPPORT
+static void generate_real_path(request * req)
+{
+	req->realPathName = (char*)malloc(strlen(document_root)+strlen(req->script_name)+1);
+	if(!req->realPathName){
+		perror("boa: out of memory in strdup");
+    	exit(1);
+	}
+	bzero(req->realPathName,strlen(document_root)+strlen(req->script_name)+1);
+	strcat(req->realPathName,document_root);
+	strcat(req->realPathName,req->script_name);
+}
+#endif
 /*
  * Name: find_alias
  *
@@ -239,7 +255,30 @@ int translate_uri(request * req)
     alias *current;
     char *p;
     unsigned int uri_len;
+    //brad add
+ 	extern int isFWUPGRADE;	
+	extern int isREBOOTASP;
 
+   //hf add
+   	extern int isCFGUPGRADE;
+    if(isFWUPGRADE==1) {
+//		if( !strcmp(req->request_uri, WEB_PAGE_FWUPGRADE)) {
+		if( !strcmp(req->request_uri, COUNTDOWN_PAGE)) {
+			isREBOOTASP=1;
+			isFWUPGRADE=2;
+		}
+
+	}
+
+	if(isCFGUPGRADE == 1) {
+		//printf("%s %d\n",__FUNCTION__,__LINE__);
+		if( !strcmp(req->request_uri, COUNTDOWN_PAGE)) {
+	//		printf("%s %d\n",__FUNCTION__,__LINE__);
+			isREBOOTASP=1;
+			isCFGUPGRADE=2;
+		}
+	}
+	//fprintf(stderr, "uri=%s\n", req->request_uri);
     if (req->request_uri[0] != '/') {
         send_r_bad_request(req);
         return 0;
@@ -428,12 +467,32 @@ int translate_uri(request * req)
             boa_perror(req, "Could not strdup req->request_uri for req->script_name.");
             return 0;
         }
-        if (req->http_version == HTTP09)
+#ifdef BOA_PHP_SUPPORT
+		generate_real_path(req);
+		
+#endif
+        if (req->http_version == HTTP09
+			|| strncmp("nph-", req->pathname+5, 4) == 0)
             req->cgi_type = NPH;
         else
             req->cgi_type = CGI;
+
         return 1;
     } else if (req->method == M_POST) { /* POST to non-script */
+#ifdef SUPPORT_ASP
+		if (strstr(req->request_uri, "boafrm"))
+			return 1;
+#endif
+#ifdef BOA_CGI_SUPPORT
+		if (strstr(req->request_uri, ".cgi")
+#ifdef BOA_PHP_SUPPORT
+		||  isPhpReq(req)
+#endif
+		){
+			req->cgi_type = CGI;			
+			return 1;
+		}
+#endif
         /* it's not a cgi, but we try to POST??? */
         log_error_doc(req);
         fputs("POST to non-script disallowed.\n", stderr);
@@ -526,6 +585,11 @@ static int init_script_alias(request * req, alias * current1, unsigned int uri_l
     i = current1->real_len;
     c = '\0';
 
+#ifdef SUPPORT_ASP
+	if (req->method == M_POST && strstr(req->request_uri,".") == NULL) 
+		return 1;
+#endif          
+
     /* go to first and successive '/' and keep checking
      * if it is a full pathname
      * on success (stat (not lstat) of file is a *regular file*)
@@ -544,7 +608,7 @@ static int init_script_alias(request * req, alias * current1, unsigned int uri_l
             if (!S_ISDIR(statbuf.st_mode)) {
                 /* check access */
                 /* the file must be readable+executable by at least
-                 * u,g,or o
+                 * u,g,or o 
                  */
                 if (!S_ISREG(statbuf.st_mode) || access(pathname, R_OK|X_OK)) {
                     send_r_forbidden(req);
@@ -564,6 +628,9 @@ static int init_script_alias(request * req, alias * current1, unsigned int uri_l
         boa_perror(req, "unable to strdup req->request_uri for req->script_name");
         return 0;
     }
+#ifdef BOA_PHP_SUPPORT
+	generate_real_path(req);			
+#endif
 
     if (c == '\0') {
         err = stat(pathname, &statbuf);
@@ -576,7 +643,7 @@ static int init_script_alias(request * req, alias * current1, unsigned int uri_l
         if (!S_ISDIR(statbuf.st_mode)) {
             /* check access */
             /* the file must be readable+executable by at least
-             * u,g,or o
+             * u,g,or o 
              */
             if (!S_ISREG(statbuf.st_mode) || access(pathname, R_OK|X_OK)) {
                 send_r_forbidden(req);
@@ -660,23 +727,37 @@ static int init_script_alias(request * req, alias * current1, unsigned int uri_l
                 send_r_not_found(req);
                 return 0;
             }
+            {
+                unsigned int l1 = strlen(user_homedir);
+                unsigned int l2 = strlen(user_dir);
+                unsigned int l3 = 0;
+                if (p)
+                    l3 = strlen(p);
 
-            req->path_translated = strconcat (user_homedir,
-                                              "/", user_dir, p, NULL);
-            if (!req->path_translated) {
-                 boa_perror(req, "unable to malloc memory for "
-                            "req->path_translated");
-                 return 0;
+                req->path_translated = malloc(l1 + 1 + l2 + l3 + 1);
+                if (req->path_translated == NULL) {
+                    boa_perror(req, "unable to malloc memory for req->path_translated");
+                    return 0;
+                }
+                memcpy(req->path_translated, user_homedir, l1);
+                req->path_translated[l1] = '/';
+                memcpy(req->path_translated + l1 + 1, user_dir, l2 + 1); /* copy the NUL just in case */
+                if (p)
+                    memcpy(req->path_translated + l1 + 1 + l2, p, l3 + 1);
             }
         } else if (!req->path_translated && document_root) {
             /* no userdir, no aliasing... try document root */
-            req->path_translated = strconcat(document_root,
-                                             req->path_info, NULL);
-            if (!req->path_translated) {
-                boa_perror(req, "unable to malloc memory for "
-                           "req->path_translated");
+            unsigned int l1, l2;
+            l1 = strlen(document_root);
+            l2 = path_len;
+
+            req->path_translated = malloc(l1 + l2 + 1);
+            if (req->path_translated == NULL) {
+                boa_perror(req, "unable to malloc memory for req->path_translated");
                 return 0;
             }
+            memcpy(req->path_translated, document_root, l1);
+            memcpy(req->path_translated + l1, req->path_info, l2 + 1);
         }
     }
 

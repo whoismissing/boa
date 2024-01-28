@@ -24,6 +24,12 @@
 #include "boa.h"
 #include "access.h"
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include "apmib.h"
+#include "apform.h"
+#include "utility.h"
 
 const char *config_file_name;
 
@@ -37,11 +43,7 @@ char *server_ip;
 int virtualhost;
 char *vhost_root;
 const char *default_vhost;
-int use_lang_rewrite;
-int use_caudium_hack;
 unsigned max_connections;
-char *hsts_header;
-int no_redirect_port;
 
 char *document_root;
 char *user_dir;
@@ -70,16 +72,12 @@ char *access_log_name;
 char *cgi_log_name;
 
 int use_localtime;
-int log_forwarded_for;
 
 #ifdef USE_SETRLIMIT
 extern int cgi_rlimit_cpu;      /* boa.c */
 extern int cgi_rlimit_data;     /* boa.c */
 extern int cgi_nice;            /* boa.c */
 #endif
-extern int override_server_port;       /* boa.c */
-extern const char *override_server_ip; /* boa.c */
-
 
 /* These are new */
 static void c_add_cgi_env(char *v1, char *v2, void *table_ptr);
@@ -141,13 +139,8 @@ struct ccommand clist[] = {
     {"CgiLog", S1A, c_set_string, &cgi_log_name}, /* compatibility with CGILog */
     {"CGILog", S1A, c_set_string, &cgi_log_name},
     {"VerboseCGILogs", S0A, c_set_unity, &verbose_cgi_logs},
-    {"LogXFF", S0A, c_set_unity, &log_forwarded_for},
     {"ServerName", S1A, c_set_string, &server_name},
     {"VirtualHost", S0A, c_set_unity, &virtualhost},
-    {"LangRewrite", S0A, c_set_unity, &use_lang_rewrite},
-    {"CaudiumHack", S0A, c_set_unity, &use_caudium_hack},
-    {"EnableHSTS", S1A, c_set_string, &hsts_header},
-    {"NoRedirectPort", S0A, c_set_unity, &no_redirect_port},
     {"VHostRoot", S1A, c_set_string, &vhost_root},
     {"DefaultVHost", S1A, c_set_string, &default_vhost},
     {"DocumentRoot", S1A, c_set_string, &document_root},
@@ -509,6 +502,9 @@ static void parse(FILE * f)
 void read_config_files(void)
 {
     FILE *config;
+    unsigned int i=0;
+    char str1[8]={0};
+    char str2[32]={0};
 
     current_uid = getuid();
 
@@ -527,18 +523,17 @@ void read_config_files(void)
     parse(config);
     fclose(config);
 
-    if (override_server_port)
-        server_port = override_server_port;
-    if (override_server_ip) {
-        free (server_ip);
-        server_ip = strdup (override_server_ip);
-        if (!server_ip) {
-            perror("strdup:");
-            exit(EXIT_FAILURE);
-        }
-    }
-
     if (!server_name) {
+#ifdef SUPPORT_ASP
+	struct in_addr intaddr;
+	if (getInAddr(BRIDGE_IF, IP_ADDR, (void *)&intaddr )) {
+		server_name = strdup(inet_ntoa(intaddr));
+        	if (server_name == NULL) {
+            		perror("strdup:");
+            		exit(EXIT_FAILURE);
+        	}
+	}
+#else
         struct hostent *he;
         char temp_name[100];
 
@@ -558,10 +553,34 @@ void read_config_files(void)
             perror("strdup:");
             exit(EXIT_FAILURE);
         }
+#endif
     }
     tempdir = getenv("TMP");
     if (tempdir == NULL)
         tempdir = "/tmp";
+
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+	for(i=1;i<=15;i++)
+	{
+		memset(str1,0,8);
+		memset(str2,0,32);
+		sprintf(str1,"/sda%d",i);
+		sprintf(str2,"/var/tmp/usb/sda%d",i);
+		add_alias(str1,str2,ALIAS);
+		sprintf(str1,"/sdb%d",i);
+		sprintf(str2,"/var/tmp/usb/sdb%d",i);
+		add_alias(str1,str2,ALIAS);
+		sprintf(str1,"/sdc%d",i);
+		sprintf(str2,"/var/tmp/usb/sdc%d",i);
+		add_alias(str1,str2,ALIAS);
+	}
+    //add_alias("/sda1", "/var/tmp/usb/sda1", ALIAS);
+   // add_alias("/sda2", "/var/tmp/usb/sda2", ALIAS);
+   // add_alias("/sda3", "/var/tmp/usb/sda3", ALIAS);
+   // add_alias("/sda4", "/var/tmp/usb/sda4", ALIAS);
+   // add_alias("/sda5", "/var/tmp/usb/sda5", ALIAS);
+   // add_alias("/sda6", "/var/tmp/usb/sda6", ALIAS);
+#endif
 
     if (single_post_limit < 0) {
         fprintf(stderr, "Invalid value for single_post_limit: %d\n",

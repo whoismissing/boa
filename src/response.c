@@ -26,6 +26,9 @@
 
 #define HTML "text/html; charset=ISO-8859-1"
 
+#ifdef DIGEST_AUTHENTICATION
+#define PRESENT_TIME_LENGTH 30
+#endif
 const char *http_ver_string(enum HTTP_VERSION ver)
 {
     switch(ver) {
@@ -46,11 +49,19 @@ const char *http_ver_string(enum HTTP_VERSION ver)
 
 void print_content_type(request * req)
 {
+    struct stat buff;
     char * mime_type = get_mime_type(req->request_uri);
 
     if (mime_type != NULL) {
         req_write(req, "Content-Type: ");
+	if( strcmp(mime_type, "application/x-httpd-cgi") == 0)
+		{
+		req_write(req, "text/html");
+		}
+	else
+	{
         req_write(req, mime_type);
+	}
         if (default_charset != NULL &&
             strncasecmp( mime_type, "text", 4)==0) {
 
@@ -59,13 +70,47 @@ void print_content_type(request * req)
             req_write( req, default_charset);
         }
         req_write(req, CRLF);
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+	//fprintf(stderr, "###[%s %d] req->pathname=%s###\n", __FUNCTION__, __LINE__, req->pathname);
+	//fprintf(stderr, "###[%s %d] mime_type=%s###\n", __FUNCTION__, __LINE__, mime_type);
+	if (strstr(req->pathname, "/var/tmp/usb/")) {
+		if (stat(req->pathname, &buff) >= 0) {
+			if (!(buff.st_mode&S_IFDIR)) {
+				if (!strstr(mime_type, "video") &&
+				    !strstr(mime_type, "audio") &&
+				    !strstr(mime_type, "image")) {
+					req_write(req, "Content-Disposition: attachment\r\n");
+				}
+			}
+		}
+	}
+#endif
+	if(strcmp(req->request_uri,"/config.dat")==0)
+	{
+			req_write(req, "Content-Disposition: attachment\r\n");
+	}
+	if(strcmp(req->request_uri,"/client.ovpn")==0)
+	{
+		req_write(req, "Content-Disposition: attachment\r\n");
+	}
+#ifdef SYS_DIAGNOSTIC
+		if(strcmp(req->request_uri,"/sys_diagnostic.txt")==0)
+		{
+			req_write(req, "Content-Disposition: attachment\r\n");
+		}
+#endif
     }
 }
 
 void print_content_length(request * req)
 {
     req_write(req, "Content-Length: ");
-    req_write(req, simple_itoa(req->filesize));
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->filesize));
+#else
+           req_write(req, simple_itoa(req->filesize));
+#endif
+   
     req_write(req, CRLF);
 }
 
@@ -103,11 +148,6 @@ void print_http_headers(request * req)
     req_write(req, date_header);
     if (!conceal_server_identity)
         req_write(req, server_header);
-    if (hsts_header) {
-       req_write(req, "Strict-Transport-Security: ");
-       req_write(req, hsts_header);
-       req_write(req, CRLF);
-    }
     req_write(req, "Accept-Ranges: bytes" CRLF);
     print_ka_phrase(req);
 }
@@ -115,11 +155,23 @@ void print_http_headers(request * req)
 void print_content_range(request * req)
 {
     req_write(req, "Content-Range: bytes ");
-    req_write(req, simple_itoa(req->ranges->start));
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->ranges->start));
+#else
+           req_write(req, simple_itoa(req->ranges->start));
+#endif
     req_write(req, "-");
-    req_write(req, simple_itoa(req->ranges->stop));
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->ranges->stop));
+#else
+           req_write(req, simple_itoa(req->ranges->stop));
+#endif
     req_write(req, "/");
-    req_write(req, simple_itoa(req->filesize));
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->filesize));
+#else
+           req_write(req, simple_itoa(req->filesize));
+#endif
     req_write(req, CRLF);
 }
 
@@ -196,13 +248,105 @@ void send_r_request_ok(request * req)
     req_write(req, http_ver_string(req->http_version));
     req_write(req, " 200 OK" CRLF);
     print_http_headers(req);
-
+#ifdef BOA_PHP_SUPPORT
+	if(!isPhpReq(req)){
+#endif
+	    req_write(req, "Pragma: no-cache" CRLF);
+		req_write(req, "Cache-Control: no-store" CRLF);
+		req_write(req, "Expires: 0" CRLF);
+		
+#ifdef BOA_PHP_SUPPORT
+	}
+#endif
     if (!req->cgi_type) {
-        print_content_length(req);
+		
+#if 0 //fix converity error: IDENTICAL_BRANCHES
+	if(req->pathname != NULL && !strncmp(req->pathname, "/var/tmp/usb", strlen("/var/tmp/usb")))
+		print_content_length(req);
+	else
+#endif
+        	print_content_length(req);
         print_last_modified(req);
         print_content_type(req);
         req_write(req, CRLF);
     }
+#ifdef SUPPORT_ASP
+	else {
+#ifdef BOA_PHP_SUPPORT
+		if(isPhpReq(req))
+			return;
+#endif
+		req->content_type="text/html";
+//		if(get_reboot_close==1)
+//			req->filesize = 279;
+
+		if (req->cgi_type != CGI)
+ 		print_content_length(req);
+		
+		print_last_modified(req);
+		print_content_type(req);
+		req_write(req, CRLF);
+	}
+#endif
+}
+
+void send_r_request_ok2(request * req)
+{
+    req->response_status = R_REQUEST_OK;
+    if (req->http_version == HTTP09)
+        return;
+
+    req_write(req, http_ver_string(req->http_version));
+    req_write(req, " 200 OK" CRLF);
+    print_http_headers(req);
+#ifdef HTTP_FILE_SERVER_SUPPORTED  
+	if(req->FileUploadAct == 1){
+		
+		if(strstr(req->UserBrowser, "MSIE")){
+			req_write(req, "Pragma: no-cache" CRLF);
+	    		req_write(req, "Cache-Control: no-store" CRLF);
+					req_write(req, "Expires: 0" CRLF);
+	   		print_last_modified(req);
+	    		print_content_type(req);
+			//---------------------------------------------------------------------
+			//put Content-Length at the end of header to make parsing happy
+			req_write(req, "Content-Length: ");
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->filesize));
+#else
+           req_write(req, simple_itoa(req->filesize));
+#endif
+	//		req_write(req, "                      "); //reserve 22 characters long
+			req_write(req, CRLF);
+			//---------------------------------------------------------------------
+			req_write(req, CRLF);
+		}else{
+			 req_write(req, CRLF);
+		}
+		 return;
+	}
+	else  
+#endif    	
+	{
+	    req_write(req, "Pragma: no-cache" CRLF);
+	    req_write(req, "Cache-Control: no-store" CRLF);
+		req_write(req, "Expires: 0" CRLF);
+		
+	    print_last_modified(req);
+	    print_content_type(req);
+	    //---------------------------------------------------------------------
+	    //put Content-Length at the end of header to make parsing happy
+	    req_write(req, "Content-Length: ");
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->filesize));
+#else
+           req_write(req, simple_itoa(req->filesize));
+#endif
+	    req_write(req, CRLF);
+	    //---------------------------------------------------------------------
+	     req_write(req, CRLF);
+	}
+   
 }
 
 /* R_NO_CONTENT: 204 */
@@ -249,7 +393,12 @@ void send_r_partial_content(request * req)
         req_write(req, CRLF);
     } else {
         req_write(req, "Content-Length: ");
-        req_write(req, simple_itoa(req->ranges->stop - req->ranges->start + 1));
+#if defined(ENABLE_LFS)
+		 req_write(req, simple_off64Toa(req->ranges->stop - req->ranges->start + 1));
+#else
+			req_write(req, simple_itoa(req->ranges->stop - req->ranges->start + 1));
+#endif
+        
         req_write(req, CRLF);
     }
     print_partial_content_continue(req);
@@ -281,6 +430,90 @@ void send_r_moved_perm(request * req, const char *url)
         req_write(req, "\">here</A>.\n</BODY></HTML>\n");
     }
     req_flush(req);
+}
+
+void send_redirect_perm(request * req, const char *url)
+{
+	char *buff = NULL;
+	int len = 100;
+	
+	req->buffer_end=0;
+	SQUASH_KA(req);
+	req->response_status = R_MOVED_PERM;
+	req_write(req, "HTTP/1.0 302 Redirect\r\n");
+	print_http_headers(req);
+	req_write(req, "Content-Type: " HTML CRLF);
+#ifdef CONFIG_RTL_WAPI_SUPPORT
+			//Add for openssl and wapi. Keith
+			if(strstr(url,".cer") != 0)
+			{
+				req_write(req,("Content-Disposition: attachment\r\n"));
+			}
+#endif
+	req_write(req, "Location: ");
+	if (!strstr(url, "http://")) {
+		if (*url == '/')
+			url++;
+
+	#if 0
+		if (req->host)
+			sprintf(buff, "http://%s/%s", req->host, url);
+		else
+			sprintf(buff, "http://%s/%s", req->header_host, url);
+	#else
+		if (req->host) {
+			len += strlen(req->host);
+			//if (url)
+			//	len += strlen(url);
+
+			buff = malloc(len);		
+#if defined(BOA_WITH_MBEDTLS)
+			sprintf(buff, "https://%s/", req->host);
+#elif defined(BOA_WITH_OPENSSL)
+			sprintf(buff, "https://%s/", req->host);
+#else
+			sprintf(buff, "http://%s/", req->host);
+#endif
+		}
+		else {
+			if (req->header_host)
+				len += strlen(req->header_host);
+			//if (url)
+			//	len += strlen(url);
+
+			buff = malloc(len);
+#if defined(BOA_WITH_MBEDTLS)
+            if(req->mbedtls_client_fd.fd!=-1)
+                sprintf(buff, "https://%s/", req->header_host);	
+            else
+			sprintf(buff, "http://%s/", req->header_host);	
+#elif defined(BOA_WITH_OPENSSL)
+            if(req->ssl!=NULL)
+                sprintf(buff, "https://%s/", req->header_host);	
+            else
+                sprintf(buff, "http://%s/", req->header_host);	
+#else
+            sprintf(buff, "http://%s/", req->header_host);	
+#endif
+		}
+		req_write(req, buff);
+	#endif
+
+		//url = buff;
+	}
+	req_write_escape_http(req, url);
+        req_write(req, CRLF CRLF);
+
+	req_write(req,
+		"<HTML><HEAD></HEAD>\n"
+		"<BODY>\n<H1>302 Redirect</H1>The document has moved\n"
+		"<A HREF=\"");
+	req_write_escape_html(req, url);
+        req_write(req, "\">here</A>.\n</BODY></HTML>\n");
+	req_flush(req);
+	
+	if (buff)
+		free(buff);
 }
 
 /* R_MOVED_TEMP: 302 */
@@ -343,6 +576,51 @@ void send_r_bad_request(request * req)
     req_flush(req);
 }
 
+
+#ifdef DIGEST_AUTHENTICATION
+//use base64 encryption method to generate nonce
+static const char Base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+void base64_encode(const char *src,char *dst)
+{
+	if(src == NULL || dst == NULL )
+	{
+		perror("boa: source or destination argument is NULL.");
+		exit(1);
+	}
+	if((strlen(src)-3)<0)
+	{
+		perror("boa: source argument length is less 3.");
+		exit(1);
+	}
+    int i=0;
+    char *p=dst;
+    int d=strlen(src)-3;
+    for(i=0;i<=d;i+=3)
+    {
+        *p++=Base64[((*(src+i))>>2)&0x3f];
+        *p++=Base64[(((*(src+i))&0x3)<<4)+((*(src+i+1))>>4)];
+        *p++=Base64[((*(src+i+1)&0xf)<<2)+((*(src+i+2))>>6)];
+        *p++=Base64[(*(src+i+2))&0x3f];
+    }
+    if((strlen(src)-i)==1)
+    {
+        *p++=Base64[((*(src+i))>>2)&0x3f];
+        *p++=Base64[((*(src+i))&0x3)<<4];
+        *p++='=';
+        *p++='=';
+    }
+    if((strlen(src)-i)==2)
+    {
+        *p++=Base64[((*(src+i))>>2)&0x3f];
+        *p++=Base64[(((*(src+i))&0x3)<<4)+((*(src+i+1))>>4)];
+        *p++=Base64[((*(src+i+1)&0xf)<<2)];
+        *p++='=';
+    }
+    *p='\0';
+}
+#endif
+
+
 /* R_UNAUTHORIZED: 401 */
 void send_r_unauthorized(request * req, const char *realm_name)
 {
@@ -352,8 +630,35 @@ void send_r_unauthorized(request * req, const char *realm_name)
         req_write(req, http_ver_string(req->http_version));
         req_write(req, " 401 Unauthorized" CRLF);
         print_http_headers(req);
+
+#ifdef DIGEST_AUTHENTICATION
+		//use present time as nonce seed to generate a nonce
+		char present_time[PRESENT_TIME_LENGTH]={'\0'};
+		time_t timep;
+		time(&timep);
+		strcpy(present_time,ctime(&timep));
+		present_time[strlen(present_time)-1]='\0';     //present_time[strlen(present_time)-1] is '\n', here use '\0' to replace '\n'
+
+		char * nonce=malloc(((strlen(present_time)+2)*4/3)+1);
+		if(nonce == NULL)
+		{
+			perror("boa: malloc nonce out of memory in function send_r_unauthorized");
+			exit(1);
+		}
+		memset(nonce,0,((strlen(present_time)+2)*4/3)+1);
+		base64_encode(present_time,nonce);
+		
+		req_write(req, "WWW-Authenticate: Digest realm=\"Realtek\", ");
+
+		req_write(req, "nonce=\"");//write nonce to http challenge header
+		req_write(req, nonce);
+		req_write(req, "\"");
+		free(nonce);
+#else
         req_write(req, "WWW-Authenticate: Basic realm=\"");
         req_write(req, realm_name);
+        req_write(req, "\"");
+#endif
         req_write(req, CRLF);
         req_write(req, "Content-Type: " HTML CRLF CRLF); /* terminate header */
     }
@@ -380,11 +685,19 @@ void send_r_forbidden(request * req)
         req_write(req, "Content-Type: " HTML CRLF CRLF); /* terminate header */
     }
     if (req->method != M_HEAD) {
-        req_write(req, "<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD>\n"
+		if(req->method == M_POST){
+			req_write(req, "<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD>\n"
+                  "<BODY><H1>403 Forbidden</H1>\nYour client does not "
+                  "have permission to change the settings.</BODY></HTML>\n");
+
+		}else{
+			req_write(req, "<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD>\n"
                   "<BODY><H1>403 Forbidden</H1>\nYour client does not "
                   "have permission to get URL ");
-        req_write_escape_html(req, req->request_uri);
-        req_write(req, " from this server.\n</BODY></HTML>\n");
+       		req_write_escape_html(req, req->request_uri);
+       		req_write(req, " from this server.\n</BODY></HTML>\n");
+		}
+        
     }
     req_flush(req);
 }

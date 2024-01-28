@@ -70,7 +70,7 @@ int open_net_fd(const char *spec)
 {
     char *p;
     int fd, port;
-    struct sockaddr_in sa;
+    struct sockaddr_in sa = {0};//fix converity error: UNINIT
     struct hostent *he;
     p = strchr(spec, ':');
     if (!p)
@@ -142,6 +142,7 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
+    close(fd);
     return 0;
 }
 #endif

@@ -1,0 +1,1404 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<% getIndex("no-cache"); %>
+<title>局域网接口设置 </title>
+<% language=javascript %>
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<% getInfo("include_css"); %>
+<SCRIPT>
+var wlan_num =<% getIndex("show_wlan_num"); %> ;
+var initialDhcp;
+function checkMode()
+{
+	var opmode=<% getIndex("wlanMode"); %> ;
+
+	if( opmode > 3 )
+		disableTextField(document.tcpip.stp);
+<% getInfo("ipv6_lan_js_comment_start");%>
+	ipv6lan_init();
+<% getInfo("ipv6_lan_js_comment_end");%>
+
+}
+
+function dhcpChange(index)
+{
+	//var check_staticdhcp = document.tcpip.static_dhcp;
+	var dF = document.tcpip;
+  if ( index == 0 || index == 1 || index==3) {
+	  disableTextField(document.tcpip.dhcpRangeStart);
+   	  disableTextField(document.tcpip.dhcpRangeEnd);
+   	  enableTextField(document.tcpip.lan_gateway);
+	  disableButton( document.tcpip.dhcpClientTbl );
+   	  disableTextField(document.tcpip.domainName);
+	  disableTextField(document.tcpip.dhcpLeaseTime);
+   	   //check_staticdhcp.disabled = true;
+   	   disableButton(dF.elements["staticdhcpTbl"]);		  	  
+  }
+  else {
+   	  enableTextField(document.tcpip.dhcpRangeStart);
+   	  enableTextField(document.tcpip.dhcpRangeEnd);
+   	  disableTextField(document.tcpip.lan_gateway);
+	  enableButton( document.tcpip.dhcpClientTbl );
+   	  enableTextField(document.tcpip.domainName);
+	  enableTextField(document.tcpip.dhcpLeaseTime);
+   	  //check_staticdhcp.disabled = false;	  
+   	  enableButton(dF.elements["staticdhcpTbl"]); 	  
+  }
+  if ( index == 1 ) {
+ 	  disableTextField(document.tcpip.lan_ip);
+	  disableTextField(document.tcpip.lan_mask);
+	  disableTextField(document.tcpip.lan_gateway);
+  }
+  else {
+ 	  enableTextField(document.tcpip.lan_ip);
+	  enableTextField(document.tcpip.lan_mask);
+   	  enableTextField(document.tcpip.lan_gateway);
+  }
+
+	if(index==3 && document.tcpip.dhcp.value==3)
+	{
+		document.getElementById("relaydhcpserverip").style.display = "";
+		document.getElementById("accessrelayserverwanidx").style.display = "";		
+	}
+	else
+	{	
+		document.getElementById('relaydhcpserverip').style.display = "none";
+		document.getElementById('accessrelayserverwanidx').style.display = "none";
+	}
+}
+
+function resetClick()
+{
+   dhcpChange( initialDhcp );
+   document.tcpip.reset;
+}
+
+
+function checkClientRange(start,end)
+{
+  start_d = getDigit(start,4);
+  start_d += getDigit(start,3)*256;
+  start_d += getDigit(start,2)*256;
+  start_d += getDigit(start,1)*256;
+
+  end_d = getDigit(end,4);
+  end_d += getDigit(end,3)*256;
+  end_d += getDigit(end,2)*256;
+  end_d += getDigit(end,1)*256;
+
+  if ( start_d < end_d )
+	return true;
+
+  return false;
+}
+
+
+function isStaticIpInDHCPIpRange()//if static ip in DHCP ip range, return true; else, return false.
+{
+	var DHCPRangeStartIp=document.tcpip.dhcpRangeStart.value;
+	var DHCPRangeEndIp=document.tcpip.dhcpRangeEnd.value;
+
+	//var isStaticDHCPOn= <% getInfo("static_dhcp_onoff"); %>;
+	//if(isStaticDHCPOn)
+	//{
+		var staticDHCPEntryNum= <% getInfo("static_dhcp_entry_num"); %>;
+		if(staticDHCPEntryNum == 0)
+		{
+			return true;
+		}
+		else //staticDHCPEntryNum > 0
+		{
+			for(var i=1; i<=staticDHCPEntryNum; i++)
+			{
+				var x=document.getElementById('staticIpTable').rows[i].cells;
+				var staticIpString=x[0].innerHTML;                  //<font size="2">192.168.1.180</font>
+				var subStaticIpString1=staticIpString.substring(13);//192.168.1.180</font>
+				var endpoint=subStaticIpString1.indexOf("<");
+				var subStaticIpString2=subStaticIpString1.substring(0,endpoint);//192.168.1.180
+				for(i=1; i<=4; i++)
+				{
+					if((getDigit(subStaticIpString2,i)<getDigit(DHCPRangeStartIp,i)) || (getDigit(subStaticIpString2,i) > getDigit(DHCPRangeEndIp,i)))
+					{
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+	//}
+	//else
+	//{
+	//	return true;
+	//}
+}
+
+
+function saveChanges()
+{
+
+  /*if ( checkIpAddr(document.tcpip.lan_ip, 'Invalid IP address value! ') == false )
+	    return false;
+   */
+	
+  if (isReservedIpAddress(document.tcpip.lan_ip.value) == true)
+  {
+		alert(tcpip_reservedip_alert);
+		return false;
+  }
+  
+  if (checkIPMask(document.tcpip.lan_mask) == false)
+  	return false ;
+  
+  if(checkHostIPValid(document.tcpip.lan_ip,document.tcpip.lan_mask,tcpip_check_ip_msg)== false) 
+	return false;
+
+  if ( document.tcpip.dhcp.selectedIndex == 2) {
+
+	/*if ( checkIpAddr(document.tcpip.dhcpRangeStart, 'Invalid DHCP client start address! ') == false )
+	    return false;
+	*/
+
+	if(checkHostIPValid(document.tcpip.dhcpRangeStart,document.tcpip.lan_mask,tcpip_lan_start_ip)== false) 
+		return false;
+
+	if ( !checkSubnet(document.tcpip.lan_ip.value,document.tcpip.lan_mask.value,document.tcpip.dhcpRangeStart.value)) {
+		alert(tcpip_lan_start_ip); alert(tcpip_lan_ip_alert);
+		document.tcpip.dhcpRangeStart.value = document.tcpip.dhcpRangeStart.defaultValue;
+		document.tcpip.dhcpRangeStart.focus();
+		return false;
+	}
+
+	/*
+  	if ( checkIpAddr(document.tcpip.dhcpRangeEnd, 'Invalid DHCP client End address! ') == false )
+	    return false;
+	*/
+	if(checkHostIPValid(document.tcpip.dhcpRangeEnd,document.tcpip.lan_mask,tcpip_lan_end_ip)== false) 
+			return false;
+
+	if ( !checkSubnet(document.tcpip.lan_ip.value,document.tcpip.lan_mask.value,document.tcpip.dhcpRangeEnd.value)) {
+		alert(tcpip_lan_end_ip); alert(tcpip_lan_ip_alert);
+		document.tcpip.dhcpRangeEnd.value = document.tcpip.dhcpRangeEnd.defaultValue;
+		document.tcpip.dhcpRangeEnd.focus();
+		return false;
+	}
+        if ( !checkClientRange(document.tcpip.dhcpRangeStart.value,document.tcpip.dhcpRangeEnd.value) ) {
+		alert(tcpip_lan_invalid_rang);
+		document.tcpip.dhcpRangeStart.focus();
+		return false;
+        }
+   }
+   if ( document.tcpip.dhcp.selectedIndex != 1) {
+   	if ( document.tcpip.lan_gateway.value=="")
+		document.tcpip.lan_gateway.value = '0.0.0.0';
+	
+	if (document.tcpip.lan_gateway.value!="0.0.0.0") {
+		if ( checkIpAddr(document.tcpip.lan_gateway, tcpip_lan_end_ip) == false )
+	    		return false;
+	    	if ( !checkSubnet(document.tcpip.lan_ip.value,document.tcpip.lan_mask.value,document.tcpip.lan_gateway.value)) {
+			alert(tcpip_lan_invalid_gw_ip); alert(tcpip_lan_ip_alert);
+			document.tcpip.lan_gateway.value = document.tcpip.lan_gateway.defaultValue;
+			document.tcpip.lan_gateway.focus();
+			return false;
+      		}
+	}
+  }
+
+   if ( document.tcpip.dhcp.selectedIndex == 3 && document.tcpip.dhcp.value==3) 
+   {
+   		if(document.tcpip.relay_dhcp_server_ip.value!="")
+   		{
+			if ( checkIpAddr(document.tcpip.relay_dhcp_server_ip, tcpip_check_ip_msg) == false )
+	    		return false;   
+		}
+		if(document.tcpip.access_relay_server_wan_idx.value < 1 || document.tcpip.access_relay_server_wan_idx.value > <% getInfo("max_wan_num"); %>)
+   		{
+			alert('Invalid wan index!');
+			return false;
+		}			
+   }
+
+  var str = document.tcpip.lan_macAddr.value;
+   if(str.length ==0){
+  	document.tcpip.lan_macAddr.value = "000000000000";
+ // 	return true;
+  }
+  if ( str.length > 0 && str.length < 12) {
+	alert(tcpip_lan_macaddr_nocomplete);
+	document.tcpip.lan_macAddr.focus();
+	return false;
+  }
+  // add for "All MAC Address field can't reject 00:00:00:00:00:00/ff:ff:ff:ff:ff:ff MAC Address" issue
+  if(str == "ffffffffffff")
+  {
+	alert(tcpip_lan_macaddr_invlaid_value1);
+	document.tcpip.lan_macAddr.focus();
+	return false;
+  }
+
+  //var reg = /01005[eE][0-7][0-9a-fA-F]{5}/;
+  //if(reg.exec(str))
+  if(parseInt(str.substr(0, 2), 16) & 0x01 != 0)
+  {
+	document.tcpip.lan_macAddr.value = document.tcpip.lan_macAddr.defaultValue;
+	document.tcpip.lan_macAddr.focus();
+	alert(tcpip_lan_macaddr_invlaid_value2);
+	return false;
+  }
+  
+  for (var i=0; i<str.length; i++) {
+    if ( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
+			(str.charAt(i) >= 'a' && str.charAt(i) <= 'f') ||
+			(str.charAt(i) >= 'A' && str.charAt(i) <= 'F') )
+			continue;
+	alert(tcpip_lan_macaddr_invalid);
+	document.tcpip.lan_macAddr.focus();
+	return false;
+  }
+  if(!checkFieldDigitRange(document.tcpip.dhcpLeaseTime,1,10080,tcpip_lan_invalid_dhcp_lease_time))
+  	return false;  
+
+  var str = document.tcpip.domainName.value;
+  if(str.length == 0){
+  	document.tcpip.domainName.value = "Realtek";
+//	return true;
+  }
+
+  if(str.length > 63){
+  	alert(tcpip_lan_invalid_domain_name);
+	document.tcpip.domainName.focus();
+	return false;
+  }
+
+  for(var i=0; i<str.length; i++){
+  	if( (str.charAt(i) >= '0' && str.charAt(i) <= '9') ||
+			(str.charAt(i) >= 'a' && str.charAt(i) <= 'z') ||
+			(str.charAt(i) >= 'A' && str.charAt(i) <= 'Z') ||
+			str.charAt(i) == '-')
+			continue;
+	alert(tcpip_l2tp_server_domain_name);
+	document.tcpip.domainName.focus();
+	return false;
+  	}
+
+  if((str.charAt(0) >='0' && str.charAt(0) <= '9') ||
+  	str.charAt(0)	== '-' || 
+  	str.charAt(str.length - 1) == '-'){
+  	alert(tcpip_l2tp_server_domain_name2);
+	document.tcpip.domainName.focus();
+	return false;		
+  }
+	/*
+	if(isStaticIpInDHCPIpRange() == false)
+	{
+		alert("DHCP Client Range can't cover Static DHCP List.");
+		document.tcpip.dhcpRangeStart.focus();
+		return false;		
+	}*/
+
+  return true;
+}
+
+
+function dhcpTblClick(url) {
+	if ( document.tcpip.dhcp.selectedIndex == 2) {
+		openWindow(url, 'DHCPTbl',600, 400 );
+	}
+}
+function staticdhcpChange(index)
+{
+	var dF = document.tcpip;
+	 if ( index == 1 && dF.dhcp.selectedIndex==2 )
+		enableButton(dF.elements["staticdhcpTbl"]);
+	else
+		disableButton(dF.elements["staticdhcpTbl"]);	
+}
+function staticdhcpTblClick(url) {
+	if ( document.tcpip.dhcp.selectedIndex == 2) {
+		//openWindow(url, 'StaticDHCPTbl',820, 500 );
+		document.location.href = url;
+	}
+}
+
+<% getInfo("ipv6_lan_js_comment_start");%>
+//config dhcp6s
+
+function dhcp6s_onclick_func()
+{
+	if(document.tcpip.enable_dhcpv6s.checked == false)	{
+		disable_dhcpv6_server();
+	}
+	else
+	{
+		enable_dhcpv6_server();
+
+	}
+}
+
+function Save_LANv6()
+{
+	with(document.tcpip)
+	{
+		if(!checkIpv6Addr(lan_ip_0,lan_ip_1,lan_ip_2,lan_ip_3,lan_ip_4,
+			lan_ip_5,lan_ip_6,lan_ip_7,prefix_len_lan,tcpip_lan_invalid_lan_ipv6))
+			return false;
+
+		if(<% getIPv6Info("ipv6_ce_router"); %> && ula_mode.value == "ulaManual")
+		{
+			if(!checkIpv6Addr(ula_ip_0,nla_ip_1,ula_ip_2,ula_ip_3,ula_ip_4,
+				ula_ip_5,ula_ip_6,ula_ip_7,ula_prefix_len,tcpip_lan_invalid_ula_ipv6))
+				return false;
+		}
+
+		if(document.tcpip.enable_dhcpv6s.checked == true)
+		{
+			if(!checkIPv6(dnsaddr.value)){
+				alert(tcpip_lan_invalid_dns);
+				dnsaddr.focus();
+				return false;
+			}
+
+			if(!checkIPv6(addrPoolStart.value)){
+				alert(tcpip_lan_invalid_start_ip);
+				addrPoolStart.focus();
+				return false;
+			}
+
+			if(!checkIPv6(addrPoolEnd.value)){
+				alert(tcpip_lan_invalid_end_ip);
+				addrPoolEnd.focus();
+				return false;
+			}
+		}
+	}	
+	return true;	
+}
+
+function set_ula_ip(n)
+{
+	if(n==0)
+	{
+		document.tcpip.ula_ip_0.disabled = true;
+		document.tcpip.ula_ip_1.disabled = true;
+		document.tcpip.ula_ip_2.disabled = true;
+		document.tcpip.ula_ip_3.disabled = true;
+		document.tcpip.ula_ip_4.disabled = true;
+		document.tcpip.ula_ip_5.disabled = true;
+		document.tcpip.ula_ip_6.disabled = true;
+		document.tcpip.ula_ip_7.disabled = true;
+		document.tcpip.ula_prefix_len.disabled = true;
+	}
+	else
+	{
+		document.tcpip.ula_ip_0.disabled = false;
+		document.tcpip.ula_ip_1.disabled = false;
+		document.tcpip.ula_ip_2.disabled = false;
+		document.tcpip.ula_ip_3.disabled = false;
+		document.tcpip.ula_ip_4.disabled = false;
+		document.tcpip.ula_ip_5.disabled = false;
+		document.tcpip.ula_ip_6.disabled = false;
+		document.tcpip.ula_ip_7.disabled = false;
+		document.tcpip.ula_prefix_len.disabled = false;
+	}
+}
+
+function onclick_enable_ula()
+{
+	if(document.tcpip.enable_ula.checked == false)
+	{		
+		document.tcpip.elements["ula_mode"][0].disabled=true;
+		document.tcpip.elements["ula_mode"][1].disabled=true;
+		document.tcpip.dhcpv6_prefix_mode.options[2].disabled = true;
+		set_ula_ip(0);
+	}
+	else
+	{
+		document.tcpip.elements["ula_mode"][0].disabled=false;
+		document.tcpip.elements["ula_mode"][1].disabled=false;
+		document.tcpip.dhcpv6_prefix_mode.options[2].disabled = false;
+		if(document.tcpip.elements["ula_mode"][0].checked == true)
+			set_ula_ip(1);
+		else
+			set_ula_ip(0);
+	}
+}
+
+function ula_manually()
+{
+	set_ula_ip(1);
+}
+
+function ula_automatically()
+{
+	set_ula_ip(0);
+}
+
+function dhcpv6_prefix_mode_select()
+{
+}
+
+function disable_ipv6lanstatic()
+{
+	document.tcpip.lan_ip_0.disabled = true;
+	document.tcpip.lan_ip_1.disabled = true;
+	document.tcpip.lan_ip_2.disabled = true;
+	document.tcpip.lan_ip_3.disabled = true;
+	document.tcpip.lan_ip_4.disabled = true;
+	document.tcpip.lan_ip_5.disabled = true;
+	document.tcpip.lan_ip_6.disabled = true;
+	document.tcpip.lan_ip_7.disabled = true;
+	document.tcpip.prefix_len_lan.disabled=true;	
+}
+function enable_ipv6lanstatic()
+{
+	document.tcpip.lan_ip_0.disabled = false;
+	document.tcpip.lan_ip_1.disabled = false;
+	document.tcpip.lan_ip_2.disabled = false;
+	document.tcpip.lan_ip_3.disabled = false;
+	document.tcpip.lan_ip_4.disabled = false;
+	document.tcpip.lan_ip_5.disabled = false;
+	document.tcpip.lan_ip_6.disabled = false;
+	document.tcpip.lan_ip_7.disabled = false;
+	document.tcpip.prefix_len_lan.disabled=false;	
+}
+function disable_dhcpv6_server()
+{
+	document.tcpip.dnsaddr.disabled = true;
+	document.tcpip.interfacenameds.disabled = true;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		document.tcpip.dhcpv6_prefix_mode.disabled = true;
+	}
+	document.tcpip.addrPoolStart.disabled = true;
+	document.tcpip.addrPoolEnd.disabled = true;
+}
+function enable_dhcpv6_server()
+{
+	document.tcpip.dnsaddr.disabled = false;
+	document.tcpip.interfacenameds.disabled = false;
+	document.tcpip.addrPoolStart.disabled = false;
+	document.tcpip.addrPoolEnd.disabled = false;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		document.tcpip.dhcpv6_prefix_mode.disabled = false;
+	}
+}
+function ipv6lanautoclicked()
+{
+	document.getElementById("IPv6_address_div").style.display="none";
+	document.getElementById("IPv6_config_div").style.display="none";
+	document.getElementById("config_prefix_div").style.display="none";
+	//disable_ipv6lanstatic();
+	//if(document.tcpip.enable_dhcpv6s.checked == true)
+	//	disable_dhcpv6_server();
+}
+function ipv6lanmanualclicked()
+{
+	document.getElementById("IPv6_address_div").style.display="block";
+	document.getElementById("IPv6_config_div").style.display="block";
+	document.getElementById("config_prefix_div").style.display="block";
+	//enable_ipv6lanstatic();
+	//if(document.tcpip.enable_dhcpv6s.checked == true)
+	//	enable_dhcpv6_server();
+	//else
+	//	disable_dhcpv6_server();
+	
+}
+function ipv6lan_init()
+{
+	var ipv6lanOrigin = <% getIPv6Info("ipv6lanOrigin")%>;//0:auto 1:manual
+	if(ipv6lanOrigin) //manual
+	{
+		document.tcpip.elements["ipv6lanOrigin"][1].checked = true;
+	}else //auto
+	{
+		document.tcpip.elements["ipv6lanOrigin"][0].checked = true;
+	}
+	enable_ipv6lanstatic();
+	dhcp6s_init();
+	radvd_init();
+	if(ipv6lanOrigin)//manual
+	{
+		document.getElementById("IPv6_address_div").style.display="block";
+		document.getElementById("IPv6_config_div").style.display="block";
+		document.getElementById("config_prefix_div").style.display="block";
+	}
+	else
+	{
+		document.getElementById("IPv6_address_div").style.display="none";
+		document.getElementById("IPv6_config_div").style.display="none";
+		document.getElementById("config_prefix_div").style.display="none";
+	}
+}
+function dhcp6s_init()
+{
+	var ipv6WanEnable = <%getIPv6WanInfo("ipv6WanEnabled")%>;
+//	var ipv6lanOrigin = <% getIPv6Info("ipv6lanOrigin")%>;//0:auto 1:manual
+//	if(ipv6WanEnable)
+	{
+		document.tcpip.enable_dhcpv6s.disabled = false;
+	var enable_dhcp6s = <% getIPv6Info("enable_dhcpv6s"); %>;
+	//enable_ipv6lanstatic();	
+	if(enable_dhcp6s)
+	{
+		document.tcpip.enable_dhcpv6s.checked = true;
+		enable_dhcpv6_server();
+	}
+	else
+	{
+		document.tcpip.enable_dhcpv6s.checked = false;
+		disable_dhcpv6_server();
+	}
+	
+	if(!<% getIPv6Info("ipv6_ce_router"); %>)
+		return;
+	
+	var enable_ula = <% getIPv6Info("enable_ula"); %> + 0;
+	var ula_mode = <% getIPv6Info("ula_mode"); %> + 0;
+	var pd_enable = <%getIPv6WanInfo("enable_dhcpv6pd")%> + 0;
+
+	if(enable_ula == 0)
+	{
+		document.tcpip.enable_ula.checked = false;
+		document.tcpip.dhcpv6_prefix_mode.options[2].disabled = true;
+	}
+	else
+	{
+		document.tcpip.enable_ula.checked = true;
+		document.tcpip.dhcpv6_prefix_mode.options[2].disabled = false;
+	}
+
+	if(pd_enable == 0)
+		document.tcpip.dhcpv6_prefix_mode.options[1].disabled = true;
+
+	if(ula_mode == 0)
+	{
+		document.tcpip.elements["ula_mode"][0].checked = true;
+	}
+	else
+	{
+		document.tcpip.elements["ula_mode"][1].checked = true;
+	}
+
+	onclick_enable_ula();
+
+	var dhcpv6_prefix_mode = <% getIPv6Info("dhcpv6ProfixMode"); %> + 0;
+	document.tcpip.dhcpv6_prefix_mode.selectedIndex = dhcpv6_prefix_mode;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+//config radvd
+
+function disable_all()
+{
+	var fm = document.tcpip;
+
+	fm.interfacename.disabled=true;
+	fm.MaxRtrAdvInterval.disabled=true;
+	fm.MinRtrAdvInterval.disabled=true;
+	fm.MinDelayBetweenRAs.disabled=true;
+	fm.AdvManagedFlag.disabled=true;
+	fm.AdvOtherConfigFlag.disabled=true;
+	fm.AdvLinkMTU.disabled=true;
+	fm.AdvReachableTime.disabled=true;
+	fm.AdvRetransTimer.disabled=true;
+	fm.AdvCurHopLimit.disabled=true;
+	fm.AdvDefaultLifetime.disabled=true;
+	fm.AdvDefaultPreference.disabled=true;
+	fm.AdvSourceLLAddress.disabled=true;
+	fm.UnicastOnly.disabled=true;
+
+	fm.Enabled_0.disabled = true;
+	fm.Enabled_1.disabled = true;
+
+	disable_prefix(0);
+	disable_prefix(1);
+}
+
+function enable_all()
+{
+	var fm = document.tcpip;
+
+	fm.interfacename.disabled=false;
+	fm.MaxRtrAdvInterval.disabled=false;
+	fm.MinRtrAdvInterval.disabled=false;
+	fm.MinDelayBetweenRAs.disabled=false;
+	fm.AdvManagedFlag.disabled=false;
+	fm.AdvOtherConfigFlag.disabled=false;
+	fm.AdvLinkMTU.disabled=false;
+	fm.AdvReachableTime.disabled=false;
+	fm.AdvRetransTimer.disabled=false;
+	fm.AdvCurHopLimit.disabled=false;
+	fm.AdvDefaultLifetime.disabled=false;
+	fm.AdvDefaultPreference.disabled=false;
+	fm.AdvSourceLLAddress.disabled=false;
+	fm.UnicastOnly.disabled=false;
+
+	fm.Enabled_0.disabled = false;
+	fm.Enabled_1.disabled = false;
+	
+	if(fm.Enabled_0.checked == true)
+		enable_prefix(0);
+	else
+		disable_prefix(0);
+
+	if(fm.Enabled_1.checked == true)
+		enable_prefix(1);
+	else
+		disable_prefix(1);
+}
+
+function disable_prefix(index)
+{
+	var fm = document.tcpip;
+	
+	if(index == 0)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix0_mode.disabled=true;
+		}
+		fm.radvdprefix0_1.disabled=true;
+		fm.radvdprefix0_2.disabled=true;
+		fm.radvdprefix0_3.disabled=true;
+		fm.radvdprefix0_4.disabled=true;
+		fm.radvdprefix0_5.disabled=true;
+		fm.radvdprefix0_6.disabled=true;
+		fm.radvdprefix0_7.disabled=true;
+		fm.radvdprefix0_8.disabled=true;
+		fm.radvdprefix0_len.disabled=true;
+		fm.AdvOnLinkFlag_0.disabled=true;
+		fm.AdvAutonomousFlag_0.disabled=true;
+		fm.AdvValidLifetime_0.disabled=true;
+		fm.AdvPreferredLifetime_0.disabled=true;
+		fm.AdvRouterAddr_0.disabled=true;
+	}
+	else if(index == 1)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix1_mode.disabled=true;
+		}
+		fm.radvdprefix1_1.disabled=true;
+		fm.radvdprefix1_2.disabled=true;
+		fm.radvdprefix1_3.disabled=true;
+		fm.radvdprefix1_4.disabled=true;
+		fm.radvdprefix1_5.disabled=true;
+		fm.radvdprefix1_6.disabled=true;
+		fm.radvdprefix1_7.disabled=true;
+		fm.radvdprefix1_8.disabled=true;
+		fm.radvdprefix1_len.disabled=true;
+		fm.AdvOnLinkFlag_1.disabled=true;
+		fm.AdvAutonomousFlag_1.disabled=true;
+		fm.AdvValidLifetime_1.disabled=true;
+		fm.AdvPreferredLifetime_1.disabled=true;
+		fm.AdvRouterAddr_1.disabled=true;
+	}
+}
+
+function enable_prefix(index)
+{
+	var fm = document.tcpip;
+	
+	if(index == 0)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix0_mode.disabled=false;
+			radvd_prefix_mode_change(0);
+		}
+		else
+		{
+			fm.radvdprefix0_1.disabled=false;
+			fm.radvdprefix0_2.disabled=false;
+			fm.radvdprefix0_3.disabled=false;
+			fm.radvdprefix0_4.disabled=false;
+			fm.radvdprefix0_5.disabled=false;
+			fm.radvdprefix0_6.disabled=false;
+			fm.radvdprefix0_7.disabled=false;
+			fm.radvdprefix0_8.disabled=false;
+			fm.radvdprefix0_len.disabled=false;
+		}
+		fm.AdvOnLinkFlag_0.disabled=false;
+		fm.AdvAutonomousFlag_0.disabled=false;
+		fm.AdvValidLifetime_0.disabled=false;
+		fm.AdvPreferredLifetime_0.disabled=false;
+		fm.AdvRouterAddr_0.disabled=false;
+	}
+	else if(index == 1)
+	{
+		if(<% getIPv6Info("ipv6_ce_router"); %>)
+		{
+			fm.radvdprefix1_mode.disabled=false;
+			radvd_prefix_mode_change(1);
+		}
+		else
+		{
+			fm.radvdprefix1_1.disabled=false;
+			fm.radvdprefix1_2.disabled=false;
+			fm.radvdprefix1_3.disabled=false;
+			fm.radvdprefix1_4.disabled=false;
+			fm.radvdprefix1_5.disabled=false;
+			fm.radvdprefix1_6.disabled=false;
+			fm.radvdprefix1_7.disabled=false;
+			fm.radvdprefix1_8.disabled=false;
+			fm.radvdprefix1_len.disabled=false;
+		}
+		fm.AdvOnLinkFlag_1.disabled=false;
+		fm.AdvAutonomousFlag_1.disabled=false;
+		fm.AdvValidLifetime_1.disabled=false;
+		fm.AdvPreferredLifetime_1.disabled=false;
+		fm.AdvRouterAddr_1.disabled=false;
+	}
+}
+
+function radvd_onclick_func()
+{
+	var fm = document.tcpip;
+	if(fm.enable_radvd.checked == false)
+	{
+		disable_all();
+	}
+	else
+	{
+		enable_all();
+	}
+}
+function radvd_save()
+{
+	with(document.tcpip)
+	{
+		if(!checkIpv6Addr(radvdprefix0_1,radvdprefix0_2,radvdprefix0_3,radvdprefix0_4,radvdprefix0_5,
+			radvdprefix0_6,radvdprefix0_7,radvdprefix0_8,radvdprefix0_len,tcpip_lan_invalid_first_prefix))
+			return false;
+
+		if(!checkIpv6Addr(radvdprefix1_1,radvdprefix1_2,radvdprefix1_3,radvdprefix1_4,radvdprefix1_5,
+			radvdprefix1_6,radvdprefix1_7,radvdprefix1_8,radvdprefix1_len,tcpip_lan_invalid_second_prefix))
+			return false;
+	}
+	
+	return true;
+	
+}
+
+function default_setting()
+{
+	document.tcpip.interfacename.value="br0";
+	document.tcpip.MaxRtrAdvInterval.value=600;
+	document.tcpip.MinRtrAdvInterval.value=198;
+	document.tcpip.MinDelayBetweenRAs.value=3;
+	document.tcpip.AdvManagedFlag.checked=false;
+	document.tcpip.AdvOtherConfigFlag.checked=false;
+	document.tcpip.AdvLinkMTU.value=0;
+	document.tcpip.AdvReachableTime.value=0;
+	document.tcpip.AdvRetransTimer.value=0;
+	document.tcpip.AdvCurHopLimit.value=64;
+	document.tcpip.AdvDefaultLifetime.value=1800;
+	document.tcpip.AdvDefaultPreference.selectedIndex=1;
+	document.tcpip.AdvSourceLLAddress.checked=false;
+	document.tcpip.UnicastOnly.checked=false;
+	
+	document.tcpip.Enabled_0.checked=true;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		document.tcpip.radvdprefix0_mode.selectedIndex=0;
+	}
+	document.tcpip.radvdprefix0_1.value="3ffe";
+	document.tcpip.radvdprefix0_2.value="0501";
+	document.tcpip.radvdprefix0_3.value="ffff";
+	document.tcpip.radvdprefix0_4.value="0100";
+	document.tcpip.radvdprefix0_5.value="0000";
+	document.tcpip.radvdprefix0_6.value="0000";
+	document.tcpip.radvdprefix0_7.value="0000";
+	document.tcpip.radvdprefix0_8.value="0000";
+	document.tcpip.radvdprefix0_len.value=64;
+	document.tcpip.AdvOnLinkFlag_0.checked=true;
+	document.tcpip.AdvAutonomousFlag_0.checked=true;
+	document.tcpip.AdvValidLifetime_0.value=2592000 ;
+	document.tcpip.AdvPreferredLifetime_0.value=604800 ;
+	document.tcpip.AdvRouterAddr_0.checked=false;
+	
+	document.tcpip.Enabled_1.checked=false;
+}
+
+function reset_setting()
+{
+	document.tcpip.interfacename.value="";
+	document.tcpip.MaxRtrAdvInterval.value=0;
+	document.tcpip.MinRtrAdvInterval.value=0;
+	document.tcpip.MinDelayBetweenRAs.value=0;
+	document.tcpip.AdvManagedFlag.checked=false;
+	document.tcpip.AdvOtherConfigFlag.checked=false;
+	document.tcpip.AdvLinkMTU.value=0;
+	document.tcpip.AdvReachableTime.value=0;
+	document.tcpip.AdvRetransTimer.value=0;
+	document.tcpip.AdvCurHopLimit.value=0;
+	document.tcpip.AdvDefaultLifetime.value=0;
+	document.tcpip.AdvDefaultPreference.selectedIndex=1;
+	document.tcpip.AdvSourceLLAddress.checked=false;
+	document.tcpip.UnicastOnly.checked=false;
+	
+	document.tcpip.Enabled_0.checked=false;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		document.tcpip.radvdprefix0_mode.selectedIndex=0;
+	}
+	document.tcpip.radvdprefix0_1.value="0000";
+	document.tcpip.radvdprefix0_2.value="0000";
+	document.tcpip.radvdprefix0_3.value="0000";
+	document.tcpip.radvdprefix0_4.value="0000";
+	document.tcpip.radvdprefix0_5.value="0000";
+	document.tcpip.radvdprefix0_6.value="0000";
+	document.tcpip.radvdprefix0_7.value="0000";
+	document.tcpip.radvdprefix0_8.value="0000";
+	document.tcpip.radvdprefix0_len.value=0;
+	document.tcpip.AdvOnLinkFlag_0.checked=false;
+	document.tcpip.AdvAutonomousFlag_0.checked=false;
+	document.tcpip.AdvValidLifetime_0.value=0 ;
+	document.tcpip.AdvPreferredLifetime_0.value=0 ;
+	document.tcpip.AdvRouterAddr_0.checked=false;
+	
+	document.tcpip.Enabled_1.checked=false;
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		document.tcpip.radvdprefix1_mode.selectedIndex=0;
+	}
+	document.tcpip.radvdprefix1_1.value="0000";
+	document.tcpip.radvdprefix1_2.value="0000";
+	document.tcpip.radvdprefix1_3.value="0000";
+	document.tcpip.radvdprefix1_4.value="0000";
+	document.tcpip.radvdprefix1_5.value="0000";
+	document.tcpip.radvdprefix1_6.value="0000";
+	document.tcpip.radvdprefix1_7.value="0000";
+	document.tcpip.radvdprefix1_8.value="0000";
+	document.tcpip.radvdprefix1_len.value=0;
+	document.tcpip.AdvOnLinkFlag_1.checked=false;
+	document.tcpip.AdvAutonomousFlag_1.checked=false;
+	document.tcpip.AdvValidLifetime_1.value=0 ;
+	document.tcpip.AdvPreferredLifetime_1.value=0 ;
+	document.tcpip.AdvRouterAddr_1.checked=false;
+}
+
+function onclick_prefix(index)
+{
+	if(index == 0)
+	{
+		if(document.tcpip.Enabled_0.checked == true)
+		{
+			enable_prefix(0);
+		}
+		else
+		{
+			disable_prefix(0);
+		}
+	}
+	else if(index == 1)
+	{
+		if(document.tcpip.Enabled_1.checked == true)
+		{
+			enable_prefix(1);
+		}
+		else
+		{
+			disable_prefix(1);
+		}
+	}
+}
+
+function radvd_prefix_mode_change(index)
+{
+	var fm = document.tcpip;
+	
+	if(index == 0)
+	{
+		if(fm.radvdprefix0_mode.selectedIndex == 0)
+		{
+			fm.radvdprefix0_1.disabled=false;
+			fm.radvdprefix0_2.disabled=false;
+			fm.radvdprefix0_3.disabled=false;
+			fm.radvdprefix0_4.disabled=false;
+			fm.radvdprefix0_5.disabled=false;
+			fm.radvdprefix0_6.disabled=false;
+			fm.radvdprefix0_7.disabled=false;
+			fm.radvdprefix0_8.disabled=false;
+			fm.radvdprefix0_len.disabled=false;
+		}
+		else
+		{
+			fm.radvdprefix0_1.disabled=true;
+			fm.radvdprefix0_2.disabled=true;
+			fm.radvdprefix0_3.disabled=true;
+			fm.radvdprefix0_4.disabled=true;
+			fm.radvdprefix0_5.disabled=true;
+			fm.radvdprefix0_6.disabled=true;
+			fm.radvdprefix0_7.disabled=true;
+			fm.radvdprefix0_8.disabled=true;
+			fm.radvdprefix0_len.disabled=true;
+		}
+	}
+	else if(index == 1)
+	{
+		if(fm.radvdprefix1_mode.selectedIndex == 0)
+		{
+			fm.radvdprefix1_1.disabled=false;
+			fm.radvdprefix1_2.disabled=false;
+			fm.radvdprefix1_3.disabled=false;
+			fm.radvdprefix1_4.disabled=false;
+			fm.radvdprefix1_5.disabled=false;
+			fm.radvdprefix1_6.disabled=false;
+			fm.radvdprefix1_7.disabled=false;
+			fm.radvdprefix1_8.disabled=false;
+			fm.radvdprefix1_len.disabled=false;
+		}
+		else
+		{
+			fm.radvdprefix1_1.disabled=true;
+			fm.radvdprefix1_2.disabled=true;
+			fm.radvdprefix1_3.disabled=true;
+			fm.radvdprefix1_4.disabled=true;
+			fm.radvdprefix1_5.disabled=true;
+			fm.radvdprefix1_6.disabled=true;
+			fm.radvdprefix1_7.disabled=true;
+			fm.radvdprefix1_8.disabled=true;
+			fm.radvdprefix1_len.disabled=true;
+		}
+	}
+}
+
+function radvd_init()
+{
+	var enable = <% getIPv6Info("enable_radvd"); %>;
+	//var ipv6lanOrigin = <% getIPv6Info("ipv6lanOrigin"); %>;//0:auto 1:manual
+	if(<% getIPv6Info("ipv6_ce_router"); %>)
+	{
+		var radvdprefix0_mode = <% getIPv6Info("radvdprefix0_mode"); %> + 0;
+		var radvdprefix1_mode = <% getIPv6Info("radvdprefix1_mode"); %> + 0;
+		var pd_enable = <%getIPv6WanInfo("enable_dhcpv6pd")%> + 0;
+		var ula_enable = <% getIPv6Info("enable_ula"); %> + 0;
+		
+		document.tcpip.radvdprefix0_mode.selectedIndex = radvdprefix0_mode;
+		document.tcpip.radvdprefix1_mode.selectedIndex = radvdprefix1_mode;
+
+		if(pd_enable == 0)
+		{
+			document.tcpip.radvdprefix0_mode.options[1].disabled = true;
+			document.tcpip.radvdprefix1_mode.options[1].disabled = true;
+		}
+		if(ula_enable == 0)
+		{
+			document.tcpip.radvdprefix0_mode.options[2].disabled = true;
+			document.tcpip.radvdprefix1_mode.options[2].disabled = true;
+		}
+	}
+
+	if(enable == 1)
+	{
+		document.tcpip.enable_radvd.checked = true;
+		enable_all();
+	}
+	else
+	{
+		document.tcpip.enable_radvd.checked = false;
+		disable_all();
+	}
+}
+
+<% getInfo("ipv6_lan_js_comment_end");%>
+
+</SCRIPT>
+</head>
+
+<body onload="checkMode();">
+<blockquote>
+<h2><script>dw(tcpip_lan_header)</script></h2>
+
+<form action=/boafrm/formTcpipSetup method=POST name="tcpip">
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+  <tr><font size=2>
+    <script>dw(tcpip_lan_explain)</script>
+  </tr>
+  <tr><hr size=1 noshade align=top></tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_ip)</script></b></td>
+      <td width="70%"><input type="text" name="lan_ip" size="15" maxlength="15" value=<% getInfo("ip-rom"); %>></td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_mask)</script></b></td>
+      <td width="70%"><input type="text" name="lan_mask" size="15" maxlength="15" value="<% getInfo("mask-rom"); %>"></td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_default_gateway)</script></b></td>
+      <td width="70%"><input type="text" name="lan_gateway" size="15" maxlength="15" value="<% getInfo("gateway-rom"); %>"></td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_dhcp)</script></b></td>
+      <td width="70%"><select size="1" name="dhcp" onChange="dhcpChange(document.tcpip.dhcp.selectedIndex)">
+       <%  getDHCPModeCombobox(); %>  
+	   </select>
+     </td>
+  </tr>
+
+  <tr id=relaydhcpserverip >  
+      <td width="30%"><font size=2><b><script>dw(relay_dhcp_server_ip)</script></b></td>
+      <td width="70%"><input type="text" name="relay_dhcp_server_ip" size="15" maxlength="15" value=<% getInfo("relay_dhcp_server_ip"); %>></td>
+  </tr>
+
+  <tr id=accessrelayserverwanidx >
+      <td width="30%"><font size=2><b><script>dw(relay_access_server_wan_idx)</script></b></td>
+      <td width="70%"><input type="text" name="access_relay_server_wan_idx" size="6" maxlength="2" value="<% getInfo("access_relay_server_wan_idx"); %>"><font size=2>(1 ~ <% getInfo("max_wan_num"); %>)</td>
+  </tr> 
+   
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_dhcp_rang)</script></b></td>
+      <td width="70%"><input type="text" name="dhcpRangeStart" size="12" maxlength="15" value="<% getInfo("dhcpRangeStart"); %>">
+      <font face="Arial" size="5">-</font> <input type="text" name="dhcpRangeEnd" size="12" maxlength="15" value="<% getInfo("dhcpRangeEnd"); %>">&nbsp;
+        <input type="button" value="Show Client" name="dhcpClientTbl" onClick="dhcpTblClick('/dhcptbl.htm')" >
+        <script>document.tcpip.dhcpClientTbl.value = tcpip_show_client;</script>
+      </td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_dhcp_time)</script></b></td>
+      <td width="70%"><input type="text" name="dhcpLeaseTime" size="6" maxlength="5" value="<% getInfo("dhcpLeaseTime"); %>"> <font size=2>(1 ~ 10080 <script>dw(tcpip_minutes)</script>)</td>
+  </tr>
+<tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_lan_staicdhcp)</script></b></td>
+      <td width="70%">
+				<input type="button" value="Set Static DHCP" name="staticdhcpTbl" onClick="staticdhcpTblClick('/tcpip_staticdhcp.htm')" >    
+				<script>document.tcpip.staticdhcpTbl.value = tcpip_staticdhcp;</script>
+      </td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_domain)</script></b></td>
+      <td width="70%"><input type="text" name="domainName" size="15" maxlength="30" value="<% getInfo("domainName"); %>"></td>
+  </tr>
+
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_802_1d)</script></b></td>
+      <td width="70%"><select size="1" name="stp">
+      <SCRIPT>
+      	if(<% getIndex("stp"); %>)      	
+      		document.write("\
+				<option value=\"0\" >"+tcpip_802_1d_disabled+"</option>\
+				<option value=\"1\" selected>"+tcpip_802_1d_enable+"</option>");
+      	else
+			document.write("\
+				<option value=\"0\" selected>"+tcpip_802_1d_disabled+"</option>\
+				<option value=\"1\" >"+tcpip_802_1d_enable+"</option>");
+     	  	
+   	  		
+   	  </SCRIPT>
+	    </select>
+      </td>
+  </tr>
+<%getIndex("mfi_wac_interface_start")%>
+  <tr>
+      <td width="30%"><font size=2><b> <script>dw(tcpip_lan_wac_if)</script> </b></td>
+      <td width="70%"><select size="1" name="mfiWacId">
+      <SCRIPT>
+      	if(<% getIndex("wac_interface"); %>)      	
+      		document.write("\
+				<option value=\"0\" selected>wlan1</option>\
+				<option value=\"1\" >wlan2</option>");
+      	else
+			document.write("\
+				<option value=\"0\" >wlan1</option>\
+				<option value=\"1\" selected>wlan2</option>");
+     	  	
+   	  		
+   	  </SCRIPT>
+	    </select>
+      </td>
+  </tr>
+<%getIndex("mfi_wac_interface_end")%>
+  <tr>
+      <td width="30%"><font size=2><b><script>dw(tcpip_wan_clone_mac)</script></b></td>
+      <td width="70%"><input type="text" name="lan_macAddr" size="15" maxlength="12" value="<% getInfo("bridgeMac"); %>"></td>
+  </tr>
+  <SCRIPT>
+  	initialDhcp = document.tcpip.dhcp.selectedIndex;
+	dhcpChange(initialDhcp);
+	//staticdhcpChange(document.tcpip.static_dhcp.selectedIndex)
+  </SCRIPT>
+  </table>
+<br>
+	<table style="display:none;" id="staticIpTable" border="0" width=640>
+		<% dhcpRsvdIp_List();%>
+	</table>
+
+<% getInfo("ipv6_lan_html_comment_start"); %>
+<tr><hr size=1 noshade align=top></tr>
+<b><script>dw(tcpip_lan_ipv6_config)</script></b><BR>  <BR>
+<tr>
+  <td width="100%" colspan="2"><font size=2>
+	<b><input type="radio" value="0" name="ipv6lanOrigin" onClick="ipv6lanautoclicked()"><script>dw(tcpip_lan_ipv6_auto_config)</script></b>
+  </td>
+</tr>
+<tr>
+  <td width="100%" colspan="2"><font size=2>
+    <b><input type="radio" value="1" name="ipv6lanOrigin" onClick="ipv6lanmanualclicked()"><script>dw(tcpip_lan_ipv6_manu_config)</script></b>
+  </td>
+</tr>
+<BR>  <BR>
+
+
+<span id = "IPv6_address_div" class = "off" >
+<table cellSpacing=1 cellPadding=2 border=0>
+<tr>
+     <td ><font size=2><b><script>dw(tcpip_lan_ip)</script></b></td>
+	 <td ><script>dw(tcpip_lan_prefix)</script></td>
+</tr>
+<tr>
+	<td >
+		<input type="text" name="lan_ip_0" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_0"); %>">:
+		<input type="text" name="lan_ip_1" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_1"); %>">:
+		<input type="text" name="lan_ip_2" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_2"); %>">:
+		<input type="text" name="lan_ip_3" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_3"); %>">:
+		<input type="text" name="lan_ip_4" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_4"); %>">:
+		<input type="text" name="lan_ip_5" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_5"); %>">:
+		<input type="text" name="lan_ip_6" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_6"); %>">:
+		<input type="text" name="lan_ip_7" size="4" maxlength="4" value="<% getIPv6WanInfo("lan_ipv6Addr_7"); %>">		
+	</td>
+	<td >
+		<input type="text" name="prefix_len_lan" size="4" maxlength="4"  value="<% getIPv6WanInfo("lan_ipv6Addr_prefixLen"); %>">
+	</td>
+</tr>
+</table>
+</span>
+
+
+<BR>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write(tcpip_lan_ula_config);
+	document.write('<table cellSpacing=1 cellPadding=2 border=0>');
+	document.write('<tr>');
+	document.write('	<td =#aaddff>'+tcpip_lan_enable_ula+'</td>');
+	document.write('	<td =#ddeeff><input type=checkbox name=enable_ula value =1 onclick="onclick_enable_ula()"></td>');
+	document.write('</tr>');
+	document.write('<tr>');
+	document.write('	<td colspan="2"><font size=2>');
+	document.write('		<b><input type="radio" value="ulaManual" name="ula_mode" onClick="ula_manually()">'+tcpip_lan_manu_ula+'</b>');
+	document.write('	</font></td>&nbsp;&nbsp;');
+	document.write('	<td colspan="2"><font size=2>');
+	document.write('		<b><input type="radio" value="ulaAuto" name="ula_mode" onClick="ula_automatically()">'+tcpip_lan_auto_ula+'</b>');
+	document.write('	</font></td>');
+	document.write('</tr>');
+	document.write('</table>');
+	document.write('<table cellSpacing=1 cellPadding=2 border=0>');
+	document.write('<tr>');
+	document.write('	<td =#aaddff><font size=2><b>dw(tcpip_lan_ip)</b></td>');
+	document.write('	<td =#aaddff>'+tcpip_lan_prefix+'</td>');
+	document.write('</tr>');
+	document.write('<tr>');
+	document.write('	<td =#ddeeff>');
+	document.write('		<input type="text" name="ula_ip_0" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_0"); %>">:');
+	document.write('		<input type="text" name="ula_ip_1" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_1"); %>">:');
+	document.write('		<input type="text" name="ula_ip_2" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_2"); %>">:');
+	document.write('		<input type="text" name="ula_ip_3" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_3"); %>">:');
+	document.write('		<input type="text" name="ula_ip_4" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_4"); %>">:');
+	document.write('		<input type="text" name="ula_ip_5" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_5"); %>">:');
+	document.write('		<input type="text" name="ula_ip_6" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_6"); %>">:');
+	document.write('		<input type="text" name="ula_ip_7" size="4" maxlength="4" value="<% getIPv6WanInfo("ula_ipv6Addr_7"); %>">');
+	document.write('	</td>');
+	document.write('	<td =#ddeeff>');
+	document.write('		<input type=text name=ula_prefix_len size=4 maxlength=4 enable value=<% getIPv6WanInfo("ula_ipv6Addr_prefixLen"); %>>');
+	document.write('	</td>');
+	document.write('</tr>');
+	document.write('</table>');
+	document.write('<BR>');
+	document.close();
+}
+</script>
+<b><script>dw(tcpip_lan_dhcpv6_config)</script></b>
+<BR>  <BR>
+<table cellSpacing=1 cellPadding=2 border=0>
+<td ><font size=2><b><script>dw(tcpip_lan_enable)</script><b></td><td ><input type=checkbox name=enable_dhcpv6s value =1 onclick="dhcp6s_onclick_func()"></td>
+</table>
+
+
+<span id = "IPv6_config_div" class = "off" >
+<table cellSpacing=1 cellPadding=2 border=0>
+<tr><td ><font size=2><b><script>dw(tcpip_lan_dns)</script><b></td><td ><input type=text name=dnsaddr size=48 maxlength=48 value="<% getIPv6Info("dnsaddr"); %>"></td></tr>
+<tr><td ><font size=2><b><script>dw(tcpip_lan_if)</script><b></td><td ><input type=text name=interfacenameds size=48 maxlength=48 value="<% getIPv6Info("interfacenameds"); %>"></td></tr>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td >'+tcpip_lan_pool+'</td></tr>');
+	document.write('<tr>');
+	document.write('	<td >'+tcpip_lan_addr_prefix+'</td>');
+	document.write('	<td >');
+	document.write('		<select size="1" name="dhcpv6_prefix_mode" onChange="dhcpv6_prefix_mode_select(this)">');
+	document.write('		<option value="0">'+tcpip_lan_manu+'</option>');
+	document.write('		<option value="1">'+tcpip_lan_pd+'</option>');
+	document.write('		<option value="2">'+tcpip_lan_ula_prefix+'</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+	document.write('<td ><font size=2><b>'+tcpip_lan_pool+'</td>');
+}
+</script>
+
+<tr><td ><font size=2><b><script>dw(tcpip_lan_from)</script><b></td><td ><input type=text name=addrPoolStart size=48 maxlength=48 value="<% getIPv6Info("addrPoolStart"); %>"></td></tr>
+<tr><td ><font size=2><b><script>dw(tcpip_lan_to)</script><b></td><td ><input type=text name=addrPoolEnd size=48 maxlength=48 value="<% getIPv6Info("addrPoolEnd"); %>"></td></tr>
+</table>
+
+</span>
+
+
+<tr>
+
+<BR>
+<BR>
+<b><script>dw(tcpip_lan_router_ad)</script></b>
+<BR>  <BR>
+<table cellSpacing=1 cellPadding=2 border=0>
+<td =#aaddff><font size=2><b><script>dw(tcpip_lan_enable)</script><b></td><td =#ddeeff><input type=checkbox name=enable_radvd value =1 onclick="radvd_onclick_func()"></td>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_router_ad_name)</script><b></td><td =#ddeeff><input type=text name=interfacename size=15 maxlength=15 value="<% getIPv6Info("radvdinterfacename"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_max_router_ad_interval)</script><b></td><td =#ddeeff><input type=text name=MaxRtrAdvInterval size=15 maxlength=15 value="<% getIPv6Info("MaxRtrAdvInterval"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_min_router_ad_interval)</script><b></td><td =#ddeeff><input type=text name=MinRtrAdvInterval size=15 maxlength=15 value="<% getIPv6Info("MinRtrAdvInterval"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_min_delay)</script><b></td><td =#ddeeff><input type=text name=MinDelayBetweenRAs size=15 maxlength=15 value="<% getIPv6Info("MinDelayBetweenRAs"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_flag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvManagedFlag value =1 <% getIPv6Info("AdvManagedFlag"); %>></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_other_flag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvOtherConfigFlag value =1 <% getIPv6Info("AdvOtherConfigFlag"); %>></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_mtu)</script><b></td><td =#ddeeff><input type=text name=AdvLinkMTU size=15 maxlength=15 value="<% getIPv6Info("AdvLinkMTU"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_time)</script><b></td><td =#ddeeff><input type=text name=AdvReachableTime size=15 maxlength=15 value="<% getIPv6Info("AdvReachableTime"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_timer)</script><b></td><td =#ddeeff><input type=text name=AdvRetransTimer size=15 maxlength=15 value="<% getIPv6Info("AdvRetransTimer"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_cur_hop)</script><b></td><td =#ddeeff><input type=text name=AdvCurHopLimit size=15 maxlength=15 value="<% getIPv6Info("AdvCurHopLimit"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_def_lifetime)</script><b></td><td =#ddeeff><input type=text name=AdvDefaultLifetime size=15 maxlength=15 value="<% getIPv6Info("AdvDefaultLifetime"); %>"></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_def_prefer)</script><b></td><td =#ddeeff><select name=AdvDefaultPreference><option <% getIPv6Info("AdvDefaultPreference_high"); %>>high<option <% getIPv6Info("AdvDefaultPreference_medium"); %>>medium<option <% getIPv6Info("AdvDefaultPreference_low"); %>>low</select></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_src_lladdr)</script><b></td><td =#ddeeff><input type=checkbox name=AdvSourceLLAddress value=1 <% getIPv6Info("AdvSourceLLAddress"); %>></td></tr>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_unicast)</script><b></td><td =#ddeeff><input type=checkbox name=UnicastOnly value=1 <% getIPv6Info("UnicastOnly"); %>></td></tr>
+</table>
+<BR>
+
+
+<span id = "config_prefix_div" class = "off" >
+<font size=2><b><script>dw(tcpip_lan_config_prefix1)</script></b><BR>
+<table cellSpacing=1 cellPadding=2 border=0>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td =#aaddff>'+tcpip_lan_enabled+'</td><td =#ddeeff><input type=checkbox name=Enabled_0 value=1 <% getIPv6Info("Enabled_0"); %> onclick="onclick_prefix(0)"></td></tr>');
+	document.write('<tr>');
+	document.write('	<td =#aaddff>'+tcpip_lan_prefix_mode+'</td>');
+	document.write('	<td =#aaddff>');
+	document.write('		<select size="1" name="radvdprefix0_mode" onChange="radvd_prefix_mode_change(0)">');
+	document.write('		<option value="0">'+tcpip_lan_manu+'</option>');
+	document.write('		<option value="1">'+tcpip_lan_pd+'</option>');
+	document.write('		<option value="2">'+tcpip_lan_ula_prefix+'</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+		document.write('<tr><td =#aaddff><font size=2><b>'+ tcpip_lan_enable +'<b></td><td =#ddeeff><input type=checkbox name=Enabled_0 value=1 <% getIPv6Info("Enabled_0"); %> onclick="onclick_prefix(0)"></td></tr>');
+}
+</script>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_pre)</script><b></td><td =#ddeeff>
+	<input type=text name=radvdprefix0_1 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_1"); %>">:
+	<input type=text name=radvdprefix0_2 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_2"); %>">:
+	<input type=text name=radvdprefix0_3 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_3"); %>">:
+	<input type=text name=radvdprefix0_4 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_4"); %>">:
+	<input type=text name=radvdprefix0_5 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_5"); %>">:
+	<input type=text name=radvdprefix0_6 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_6"); %>">:
+	<input type=text name=radvdprefix0_7 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_7"); %>">:
+	<input type=text name=radvdprefix0_8 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_8"); %>">/
+	<input type=text name=radvdprefix0_len size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix0_len"); %>"></td></tr>
+	
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_linkflag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvOnLinkFlag_0 value=1 <% getIPv6Info("AdvOnLinkFlag_0"); %>></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_auto_flag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvAutonomousFlag_0 value=1 <% getIPv6Info("AdvAutonomousFlag_0"); %>></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_valid_lifetime)</script><b></td><td =#ddeeff><input type=text name=AdvValidLifetime_0 size=15 maxlength=15 value="<% getIPv6Info("AdvValidLifetime_0"); %>"></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_prefer_lifetime)</script><b></td><td =#ddeeff><input type=text name=AdvPreferredLifetime_0 size=15 maxlength=15 value="<% getIPv6Info("AdvPreferredLifetime_0"); %>"></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_router_addr)</script><b></td><td =#ddeeff><input type=checkbox name=AdvRouterAddr_0 value=1 <% getIPv6Info("AdvRouterAddr_0"); %>></td></tr>
+</table>
+<BR>
+<font size=2><b><script>dw(tcpip_lan_config_prefix2)</script></b><BR>
+<table cellSpacing=1 cellPadding=2 border=0>
+<script type = "text/javascript">
+if(<% getIPv6Info("ipv6_ce_router"); %>)
+{
+	document.write('<tr><td =#aaddff>Enabled</td><td =#ddeeff><input type=checkbox name=Enabled_1 value=1 <% getIPv6Info("Enabled_1"); %> onclick="onclick_prefix(1)"></td></tr>');
+	document.write('<tr>');
+	document.write('	<td =#aaddff>prefix mode:</td>');
+	document.write('	<td =#aaddff>');
+	document.write('		<select size="1" name="radvdprefix1_mode" onChange="radvd_prefix_mode_change(1)">');
+	document.write('		<option value="0">Manually</option>');
+	document.write('		<option value="1">Prefix Delegation</option>');
+	document.write('		<option value="2">ULA Prefix</option>');
+	document.write('		</select>');
+	document.write('	</td>');
+	document.write('</tr>');
+}
+else
+{
+		document.write('<tr><td =#aaddff><font size=2><b>'+ tcpip_lan_enable +'<b></td><td =#ddeeff><input type=checkbox name=Enabled_1 value=1 <% getIPv6Info("Enabled_1"); %> onclick="onclick_prefix(1)"></td></tr>');
+}
+</script>
+<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_pre)</script><b></td><td =#ddeeff>
+	<input type=text name=radvdprefix1_1 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_1"); %>">:
+	<input type=text name=radvdprefix1_2 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_2"); %>">:
+	<input type=text name=radvdprefix1_3 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_3"); %>">:
+	<input type=text name=radvdprefix1_4 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_4"); %>">:
+	<input type=text name=radvdprefix1_5 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_5"); %>">:
+	<input type=text name=radvdprefix1_6 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_6"); %>">:
+	<input type=text name=radvdprefix1_7 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_7"); %>">:
+	<input type=text name=radvdprefix1_8 size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_8"); %>">/
+	<input type=text name=radvdprefix1_len size=4 maxlength=4 enable value="<% getIPv6Info("radvdprefix1_len"); %>"></td></tr>
+	
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_ad_linkflag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvOnLinkFlag_1 value=1 <% getIPv6Info("AdvOnLinkFlag_1"); %>></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_auto_flag)</script><b></td><td =#ddeeff><input type=checkbox name=AdvAutonomousFlag_1 value=1 <% getIPv6Info("AdvAutonomousFlag_1"); %>></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_valid_lifetime)</script><b></td><td =#ddeeff><input type=text name=AdvValidLifetime_1 size=15 maxlength=15 value="<% getIPv6Info("AdvValidLifetime_1"); %>"></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_prefer_lifetime)</script><b></td><td =#ddeeff><input type=text name=AdvPreferredLifetime_1 size=15 maxlength=15 value="<% getIPv6Info("AdvPreferredLifetime_1"); %>"></td></tr>
+	<tr><td =#aaddff><font size=2><b><script>dw(tcpip_lan_router_addr)</script><b></td><td =#ddeeff><input type=checkbox name=AdvRouterAddr_1 value=1 <% getIPv6Info("AdvRouterAddr_1"); %>></td></tr>
+</table>
+</span>
+
+
+<BR>
+<BR>
+<% getInfo("ipv6_lan_html_comment_end"); %>
+
+<% getInfo("apply_prompt_comment_start");%>
+      <input type="submit" value="Apply Changes" name="save" onClick="return saveChanges()">&nbsp;&nbsp;
+      <script>document.tcpip.save.value = tcpip_lan_save;</script>
+      <input type="reset" value="Reset" name="reset" onClick="resetClick()">
+       <script>document.tcpip.reset.value = tcpip_reset;</script>
+<% getInfo("apply_prompt_comment_end");%>
+<% getInfo("apply_direct_comment_start");%>
+      <input type="submit" value="Save" name="save" onClick="return saveChanges()">&nbsp;&nbsp;
+            <script>document.tcpip.save.value = tcpip_lan_save;</script>
+      <input type="submit" value="Save & Apply" name="save_apply" onClick="return saveChanges()">&nbsp;&nbsp;
+            <script>document.tcpip.save_apply.value = tcpip_apply;</script>
+      <input type="reset" value="Reset" name="reset" onClick="resetClick()">
+      <script>document.tcpip.reset.value = tcpip_reset;</script>
+<% getInfo("apply_direct_comment_end");%>
+	  
+      <input type="hidden" value="/tcpiplan.htm" name="submit-url">
+ </form>
+</blockquote>
+</body>
+
+</html>

@@ -1,0 +1,377 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var ipv6_qos=<%getIndex("ipv6");%>;
+
+function addRuleClick()
+{
+  if (!document.formQosAdd.enable.checked || !document.formQosAdd.wanQosEnable.checked)
+  	return true;
+
+  
+  if(document.formQosAdd.wanInterface.value == 0 && document.formQosAdd.wanQosEnable.checked){
+  		alert("wan interface cannot be empty!");
+		return false;
+  }
+  
+  if (!document.formQosAdd.automaticUplinkSpeed.checked && (document.formQosAdd.manualUplinkSpeed.value=="" || document.formQosAdd.manualUplinkSpeed.value < 100)) {
+	alert("Manual Uplink Speed cannot be empty or less then 100 when Automatic Uplink Speed is disabled.");
+	document.formQosAdd.manualUplinkSpeed.focus();
+	return false;
+  }
+ 
+  if(!document.formQosAdd.automaticUplinkSpeed.checked && validateKey(document.formQosAdd.manualUplinkSpeed.value) == 0)
+  {
+  	alert("Invalid input! It should be the decimal number (0-9).");
+	document.formQosAdd.manualUplinkSpeed.focus();
+	return false;
+  }
+ 
+  if (!document.formQosAdd.automaticDownlinkSpeed.checked && (document.formQosAdd.manualDownlinkSpeed.value=="" || document.formQosAdd.manualDownlinkSpeed.value<100)) {
+	alert("Manual Downlink Speed cannot be empty or less then 100 when Automatic Downlink Speed is disabled.");
+	document.formQosAdd.manualDownlinkSpeed.focus();
+	return false;
+  }
+  
+  if(!document.formQosAdd.automaticDownlinkSpeed.checked && validateKey(document.formQosAdd.manualDownlinkSpeed.value) == 0)
+  {
+  	alert("Invalid input! It should be the decimal number (0-9).");
+	document.formQosAdd.manualDownlinkSpeed.focus();
+	return false;
+  }
+  
+  return true;
+}
+
+function deleteClick()
+{
+  if ( !confirm('Do you really want to delete the selected entry?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm('Do you really want to delete the all entries?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function disableQosDelButton()
+{
+	disableButton(document.formQosDel.deleteSel);
+	disableButton(document.formQosDel.deleteAll);
+}
+
+var wanListNum = <%	getMultiWanIndex("WANIfaceNum")%>;
+
+/*	wan_qos_traffic[i] = {"WAN(i+1)", "v4Enable", "v6Enable", "v4QoSEnable", "v6QoSEnable"}	*/
+var wan_qos_traffic = new Array();
+
+/*	wan_bandwidth_array[i] = {"autoUp", "manuUp", "autoDown", "manuDown"}	*/
+var wan_bandwidth_array = new Array();
+
+<%getQoSWanTraffic();%>
+
+function show_qos_wan_list()
+{
+	var qos_flag = 0;
+	
+	for(var i = 0;i < wanListNum; i++)
+	{
+		if(wan_qos_traffic[i][1] == '1')
+		{
+			qos_flag = 1;
+			document.write("<option value=\"" + (i + 1) + "\">" + wan_qos_traffic[i][0] + "</option>");
+		}
+	}
+
+	if(qos_flag == 0)
+	{
+		document.write("<option value=\"0\">No Available</option>");
+	}
+}
+
+function show_qos_wan_status(wan_index)
+{
+	if(wan_qos_traffic[wan_index-1][3] == '0')
+		document.formQosAdd.wanQosEnable.checked = 0;
+	else
+		document.formQosAdd.wanQosEnable.checked = 1;
+
+	if(ipv6_qos)
+	{
+		if(wan_qos_traffic[wan_index-1][4] == '0')
+			document.formQosAdd.wanV6QosEnable.checked = 0;
+		else
+			document.formQosAdd.wanV6QosEnable.checked = 1;
+	}
+
+	if(wan_bandwidth_array[wan_index-1][0] == '0')
+		document.formQosAdd.automaticUplinkSpeed.checked = 0;
+	else
+		document.formQosAdd.automaticUplinkSpeed.checked = 1;
+	
+	document.formQosAdd.manualUplinkSpeed.value = wan_bandwidth_array[wan_index-1][1];
+
+	if(wan_bandwidth_array[wan_index-1][2] == '0')	
+		document.formQosAdd.automaticDownlinkSpeed.checked = 0;
+	else
+		document.formQosAdd.automaticDownlinkSpeed.checked = 1;
+
+	document.formQosAdd.manualDownlinkSpeed.value = wan_bandwidth_array[wan_index-1][3];
+}
+function updateQosState()
+{
+/*
+	if(document.formQosAdd.wanInterface.value == 1)
+	{
+		document.formQosAdd.wanQosEnable.checked = <% getIndex("wanQosEnable", "first"); %>;
+
+		if(ipv6_qos)
+			document.formQosAdd.wanV6QosEnable.checked = <% getIndex("wanQosV6Enable", "first"); %>;
+
+		document.formQosAdd.automaticUplinkSpeed.checked = <% getIndex("qosAutoUplinkSpeed", "first"); %>;
+		document.formQosAdd.automaticDownlinkSpeed.checked = <% getIndex("qosAutoDownlinkSpeed", "first"); %>;
+		document.formQosAdd.manualUplinkSpeed.value = <% getIndex("qosManualUplinkSpeed", "first"); %>;
+		document.formQosAdd.manualDownlinkSpeed.value = <% getIndex("qosManualDownlinkSpeed", "first"); %>;
+	}
+	else if(document.formQosAdd.wanInterface.value == 2)
+	{
+		document.formQosAdd.wanQosEnable.checked = <% getIndex("wanQosEnable", "second"); %>;
+
+		if(ipv6_qos)
+			document.formQosAdd.wanV6QosEnable.checked = <% getIndex("wanQosV6Enable", "second"); %>;
+
+		document.formQosAdd.automaticUplinkSpeed.checked = <% getIndex("qosAutoUplinkSpeed", "second"); %>;
+		document.formQosAdd.automaticDownlinkSpeed.checked = <% getIndex("qosAutoDownlinkSpeed", "second"); %>;
+		document.formQosAdd.manualUplinkSpeed.value = <% getIndex("qosManualUplinkSpeed", "second"); %>;
+		document.formQosAdd.manualDownlinkSpeed.value = <% getIndex("qosManualDownlinkSpeed", "second"); %>;
+	}
+	else if(document.formQosAdd.wanInterface.value == 3)
+	{
+		document.formQosAdd.wanQosEnable.checked = <% getIndex("wanQosEnable", "third"); %>;
+
+		if(ipv6_qos)
+			document.formQosAdd.wanV6QosEnable.checked = <% getIndex("wanQosV6Enable", "third"); %>;
+
+		document.formQosAdd.automaticUplinkSpeed.checked = <% getIndex("qosAutoUplinkSpeed", "third"); %>;
+		document.formQosAdd.automaticDownlinkSpeed.checked = <% getIndex("qosAutoDownlinkSpeed", "third"); %>;
+		document.formQosAdd.manualUplinkSpeed.value = <% getIndex("qosManualUplinkSpeed", "third"); %>;
+		document.formQosAdd.manualDownlinkSpeed.value = <% getIndex("qosManualDownlinkSpeed", "third"); %>;
+	}	
+	else if(document.formQosAdd.wanInterface.value == 4)
+	{
+		document.formQosAdd.wanQosEnable.checked = <% getIndex("wanQosEnable", "forth"); %>;
+
+		if(ipv6_qos)
+			document.formQosAdd.wanV6QosEnable.checked = <% getIndex("wanQosV6Enable", "forth"); %>;
+
+		document.formQosAdd.automaticUplinkSpeed.checked = <% getIndex("qosAutoUplinkSpeed", "forth"); %>;
+		document.formQosAdd.automaticDownlinkSpeed.checked = <% getIndex("qosAutoDownlinkSpeed", "forth"); %>;
+		document.formQosAdd.manualUplinkSpeed.value = <% getIndex("qosManualUplinkSpeed", "forth"); %>;
+		document.formQosAdd.manualDownlinkSpeed.value = <% getIndex("qosManualDownlinkSpeed", "forth"); %>;
+	}	
+*/
+
+	show_qos_wan_status(document.formQosAdd.wanInterface.value);
+	
+  	if (document.formQosAdd.enable.checked) {  	
+		enableTextField(document.formQosAdd.wanQosEnable);	
+		
+		updateLinkState();
+  	}
+  	else {
+		disableTextField(document.formQosAdd.wanQosEnable);	
+	 	disableTextField(document.formQosAdd.automaticUplinkSpeed);
+	 	disableTextField(document.formQosAdd.automaticDownlinkSpeed);
+	 	disableTextField(document.formQosAdd.manualUplinkSpeed);
+	 	disableTextField(document.formQosAdd.manualDownlinkSpeed);
+
+		if(ipv6_qos)
+			disableTextField(document.formQosAdd.wanV6QosEnable);
+	}
+}
+
+function updateLinkState()
+{
+	if(document.formQosAdd.wanQosEnable.checked){
+		if(ipv6_qos){
+		/*
+			if(((document.formQosAdd.wanInterface.value == 1) && <% getIndex("wanV6Enable", "first"); %>)  ||
+			   ((document.formQosAdd.wanInterface.value == 2) && <% getIndex("wanV6Enable", "second"); %>) ||
+			   ((document.formQosAdd.wanInterface.value == 3) && <% getIndex("wanV6Enable", "third"); %>)  ||
+			   ((document.formQosAdd.wanInterface.value == 4) && <% getIndex("wanV6Enable", "forth"); %>))
+		*/
+			if(wan_qos_traffic[document.formQosAdd.wanInterface.value-1][2] == '0')
+				disableTextField(document.formQosAdd.wanV6QosEnable);
+			else
+				enableTextField(document.formQosAdd.wanV6QosEnable);
+		}
+		
+		enableTextField(document.formQosAdd.automaticUplinkSpeed);
+	 	enableTextField(document.formQosAdd.automaticDownlinkSpeed);
+	
+		if (document.formQosAdd.automaticUplinkSpeed.checked) {  	
+		 	disableTextField(document.formQosAdd.manualUplinkSpeed);
+		}
+		else {
+			enableTextField(document.formQosAdd.manualUplinkSpeed);
+		}
+
+		if (document.formQosAdd.automaticDownlinkSpeed.checked) {  	
+			disableTextField(document.formQosAdd.manualDownlinkSpeed);
+		}
+		else {
+			enableTextField(document.formQosAdd.manualDownlinkSpeed);
+		}
+	}
+	else{
+		if(ipv6_qos)
+			disableTextField(document.formQosAdd.wanV6QosEnable);
+		
+		disableTextField(document.formQosAdd.automaticUplinkSpeed);
+	 	disableTextField(document.formQosAdd.automaticDownlinkSpeed);
+	 	disableTextField(document.formQosAdd.manualUplinkSpeed);
+	 	disableTextField(document.formQosAdd.manualDownlinkSpeed);
+	}
+}
+
+function Load_Setting()
+{
+	if ( <% getIndex("qosEnable"); %> )
+		document.formQosAdd.enable.checked = true;
+	
+	updateQosState();
+}
+</script>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2>QoS Traffic Shaping</h2>
+
+<table border=0 width="550" cellspacing=4 cellpadding=0>
+<tr><td><font size=2>
+ Entries in below table are used to config traffic shaping on wan interface.
+</font></td></tr>
+
+
+<table border=0 width=500>
+  <tr><td><hr size=1 noshade align=top></td></tr>
+
+<form action=/boafrm/formQosTraffic method=POST name="formQosAdd">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/traffic_shaping.htm" name="submit-url">
+<tr><td><font size=2><b>
+	<input type="checkbox" name="enable" value="ON" ONCLICK=updateQosState()>&nbsp;&nbsp;Enable QoS</b></font><br>
+ </td></tr>
+<tr><td><font size=2><b>
+	<input type="checkbox" name="automaticUplinkSpeed" value="ON" ONCLICK=updateLinkState()>&nbsp;&nbsp;Automatic Uplink Speed</b></font><br>
+ </td></tr>
+
+<tr><td><font size=2><b>
+	<b>Manual Uplink Speed (Kbps):</b></font> <input type="text" name="manualUplinkSpeed" size="8" maxlength="8">
+	<br><br>
+</td></tr>
+
+<tr><td><font size=2><b>
+   	<input type="checkbox" name="automaticDownlinkSpeed" value="ON" ONCLICK=updateLinkState()>&nbsp;&nbsp;Automatic Downlink Speed</b></font><br>
+ </td></tr>
+
+<tr><td><font size=2><b>
+	<b>Manual Downlink Speed (Kbps):</b></font> <input type="text" name="manualDownlinkSpeed" size="8" maxlength="8">
+</td></tr>
+</table>
+
+<table border=0 width=600>
+	<tr>
+      <td width="45%"><font size=2><b>WAN Interface QoS Setting:</b></font></font></td>
+      <td>&nbsp;</td>
+  	</tr>
+	<tr>
+       <td width="30%" ><font size=2>
+	   		<b>Interface:</b></font></td>
+       <td width="70%"><font size=2><select id="wanInterface_id" size="1" name="wanInterface" onChange="updateQosState(this)">
+  	<script type="text/javascript">
+  	/*
+		if(<% getIndex("wanEnable", "first"); %>)
+			document.write("<option value=\"1\">WAN 1</option>");
+		if(<% getIndex("wanEnable", "second"); %>)
+			document.write("<option value=\"2\">WAN 2</option>");
+		if(<% getIndex("wanEnable", "third"); %>)
+			document.write("<option value=\"3\">WAN 3</option>");
+		if(<% getIndex("wanEnable", "forth"); %>)
+			document.write("<option value=\"4\">WAN 4</option>");
+		
+		if(!<% getIndex("wanEnable", "first"); %> && !<% getIndex("wanEnable", "second"); %> && 
+		!<% getIndex("wanEnable", "third"); %> && !<% getIndex("wanEnable", "forth"); %> )
+			document.write("<option value=\"0\">No Available</option>");
+	*/
+	
+		show_qos_wan_list();
+	</script>
+	</select></td><br>
+    </tr>
+    <tr>
+		<td width="45%"><font size=2><b>Enable Ipv4 QoS:</b></font></td>
+		<td><input type="checkbox" name="wanQosEnable" value="ON" ONCLICK=updateLinkState()></td>
+	</tr>
+<% getInfo("ipv6_qos_start");%>
+	<tr>
+		<td width="45%"><font size=2><b>Enable Ipv6 QoS:</b></font></td>
+		<td><input type="checkbox" name="wanV6QosEnable" value="ON" ONCLICK=updateLinkState()></td>
+	</tr>
+<% getInfo("ipv6_qos_end");%>
+</table>
+
+<table border=0 width=220>
+	<tr>
+<% getInfo("apply_prompt_comment_start");%>	
+	<td><input type="submit" value="Apply Changes" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+	<td><input type="reset" value="Reset" name="reset"></td>
+<% getInfo("apply_prompt_comment_end");%>
+<% getInfo("apply_direct_comment_start");%>
+	<td><input type="submit" value="Save" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+	<td><input type="submit" value="Save & Apply" name="save_apply" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+	<td><input type="reset" value="Reset" name="reset"></td>
+<td><input type="hidden" value="1" name="addQosFlag"></td>
+<% getInfo("apply_direct_comment_end");%>
+  </tr>
+	<script> updateQosState(); </script>
+</form>
+</table>
+
+<br>
+<form action=/boafrm/formQosTraffic method=POST name="formQosDel">
+<table border=0 width=730>
+  <tr><font size=2><b>Current QoS Traffic Shaping Table:</b></font></tr>
+  <% qosTrafficList(); %>
+</table>
+
+ <br><input type="submit" value="Delete Selected" name="deleteSel" onClick="return deleteClick()">&nbsp;&nbsp;
+     <input type="submit" value="Delete All" name="deleteAll" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+     <input type="reset" value="Reset" name="reset">
+ <script>
+	if ( <% getIndex("shapingNum"); %> == 0 )
+		disableQosDelButton();
+ </script>
+     <input type="hidden" value="/traffic_shaping.htm" name="submit-url">
+</form> 
+
+</blockquote>
+</body>
+</html>
+

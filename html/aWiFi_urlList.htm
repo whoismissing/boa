@@ -1,0 +1,125 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>MAC Filtering</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<% getInfo("include_css"); %>
+<script>
+
+function addUrlClick()
+{
+
+	var str = document.formAWiFiURLAdd.url.value;
+
+	for (var i=0; i<str.length; i++) {
+		if ( str.charAt(i) == ';')
+		{
+			alert(aWiFiUrl_apply_error);
+			return false;
+		}
+	}
+
+	if (document.formAWiFiURLAdd.url.value=="")
+		return true;
+
+	return true;
+}
+
+
+function delClick()
+{
+  if ( !confirm(aWiFiWhiteList_delete_confirm) ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm(aWiFiWhiteList_delete_all_confirm) ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function disableDelButton()
+{
+	disableButton(document.formAWiFiURLDel.deleteSelAWiFiUrl);
+	disableButton(document.formAWiFiURLDel.deleteAllAWiFiUrl);
+	
+}
+
+</script>
+</head>
+
+<body>
+<blockquote>
+<h2><script>dw(aWiFi_url_header)</script></h2>
+
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+<tr><td><font size=2>
+<script>dw(aWiFi_url_header_explain)</script>
+</font></td></tr>
+
+<tr><td><hr size=1 noshade align=top></td></tr>
+
+<form action=/boafrm/formAWiFiUrlList method=POST name="formAWiFiURLAdd">
+<tr><td>
+     <p>
+     	<font size=2><b><script>dw(aWiFiUrl_url)</script> </b> <input type="text" name="url" size="15" maxlength="30">&nbsp;&nbsp;
+    	 <b><font size=2><script>dw(aWiFiWhiteList_comment)</script> </b> <input type="text" name="comment" size="30" maxlength="30"></font>
+     </p>
+     
+<% getInfo("apply_prompt_comment_start");%>	 
+     <p>
+    	<input type="submit" value="Apply Changes" name="addAWiFiUrl" onClick="return addUrlClick()">&nbsp;&nbsp;
+    	<input type="reset" value="Reset" name="reset">
+<% getInfo("apply_prompt_comment_end");%>
+
+<% getInfo("apply_direct_comment_start");%>
+     <p>
+     	<input type="submit" value="Save" name="addAWiFiUrl" onClick="return addUrlClick()">
+	    <script>document.formAWiFiURLAdd.addAWiFiUrl.value = aWiFiWhiteList_save;</script>&nbsp;&nbsp;
+	    
+	    <input type="submit" value="Save & Apply" name="save_apply" onClick="return addUrlClick()">
+	    <script>document.formAWiFiURLAdd.save_apply.value = aWiFiWhiteList_apply;</script>&nbsp;&nbsp;	 
+	    
+	    <input type="reset" value="Reset" name="reset">
+	    <script>document.formAWiFiURLAdd.reset.value = aWiFiWhiteList_reset;</script>
+	<% getInfo("apply_direct_comment_end");%>
+
+	    <input type="hidden" value="/aWiFi_urlList.htm" name="submit-url">
+     </p>
+</td><tr>
+</form>
+</table>
+
+
+<br>
+<form action=/boafrm/formAWiFiUrlList method=POST name="formAWiFiURLDel">
+  <table border="0" width=500>
+  <tr><font size=2><b><script>dw(aWiFiUrl_current_table)</script></b></font></tr>
+  <% aWiFiTrustedUrlList(); %>
+  </table>
+  <br>
+  <input type="submit" value="Delete Selected" name="deleteSelAWiFiUrl" onClick="return delClick()">
+  <script>document.formAWiFiURLDel.deleteSelAWiFiUrl.value = aWiFiWhiteList_delete;</script>&nbsp;&nbsp;
+  <input type="submit" value="Delete All" name="deleteAllAWiFiUrl" onClick="return deleteAllClick()">&nbsp;
+  <script>document.formAWiFiURLDel.deleteAllAWiFiUrl.value = aWiFiWhiteList_delete_all;</script>&nbsp;&nbsp;
+  <input type="reset" value="Reset" name="reset">
+  <script>document.formAWiFiURLDel.reset.value = aWiFiWhiteList_reset;</script>
+  <input type="hidden" value="/aWiFi_urlList.htm" name="submit-url">
+ <script>
+	if ( <% getIndex("aWiFiTrustedUrlNum"); %> == 0 )
+		disableDelButton();
+ </script>
+</form>
+
+</blockquote>
+</body>
+</html>

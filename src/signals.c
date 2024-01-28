@@ -29,6 +29,8 @@
 #endif
 #include <signal.h>             /* signal */
 
+#include "apform.h"
+
 sigjmp_buf env;
 int handle_sigbus;
 
@@ -39,7 +41,9 @@ void sighup(int);
 void sigint(int);
 void sigchld(int);
 void sigalrm(int);
-
+#ifdef 	CONFIG_RTL_ULINKER
+void siginit(int);
+#endif
 /*
  * Name: init_signals
  * Description: Sets up signal handlers for all our friends.
@@ -61,8 +65,9 @@ void init_signals(void)
     sigaddset(&sa.sa_mask, SIGCHLD);
     sigaddset(&sa.sa_mask, SIGALRM);
     sigaddset(&sa.sa_mask, SIGUSR1);
+#ifdef 	CONFIG_RTL_ULINKER
     sigaddset(&sa.sa_mask, SIGUSR2);
-
+#endif
     sa.sa_handler = sigsegv;
     sigaction(SIGSEGV, &sa, NULL);
 
@@ -87,11 +92,18 @@ void init_signals(void)
     sa.sa_handler = sigalrm;
     sigaction(SIGALRM, &sa, NULL);
 
-    sa.sa_handler = SIG_IGN;
+#ifdef WLAN_EASY_CONFIG
+	sa.sa_handler = sigHandler_autoconf;
+#else
+#ifdef WIFI_SIMPLE_CONFIG
+	sa.sa_handler = sigHandler_autoconf;
+#endif
+#endif
     sigaction(SIGUSR1, &sa, NULL);
-
-    sa.sa_handler = SIG_IGN;
+#ifdef CONFIG_RTL_ULINKER
+    sa.sa_handler = siginit;
     sigaction(SIGUSR2, &sa, NULL);
+#endif
 }
 
 void reset_signals(void)
@@ -111,8 +123,9 @@ void reset_signals(void)
     sigaddset(&sa.sa_mask, SIGCHLD);
     sigaddset(&sa.sa_mask, SIGALRM);
     sigaddset(&sa.sa_mask, SIGUSR1);
+#ifdef 	CONFIG_RTL_ULINKER
     sigaddset(&sa.sa_mask, SIGUSR2);
-
+#endif
     sigaction(SIGSEGV, &sa, NULL);
     sigaction(SIGBUS, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
@@ -122,7 +135,9 @@ void reset_signals(void)
     sigaction(SIGCHLD, &sa, NULL);
     sigaction(SIGALRM, &sa, NULL);
     sigaction(SIGUSR1, &sa, NULL);
+#ifdef 	CONFIG_RTL_ULINKER
     sigaction(SIGUSR2, &sa, NULL);
+#endif
 }
 
 void sigsegv(int dummy)
@@ -130,8 +145,7 @@ void sigsegv(int dummy)
     time(&current_time);
     log_error_time();
     fprintf(stderr, "caught SIGSEGV, dumping core in %s\n", tempdir);
-    if (chdir(tempdir) == -1)
-        perror ("chdir (tempdir) failed");
+    chdir(tempdir);
     abort();
 }
 
@@ -146,8 +160,7 @@ void sigbus(int dummy)
     time(&current_time);
     log_error_time();
     fprintf(stderr, "caught SIGBUS, dumping core in %s\n", tempdir);
-    if (chdir (tempdir) == -1)
-        perror ("chdir (tempdir) failed");
+    chdir(tempdir);
     abort();
 }
 
@@ -171,8 +184,7 @@ void sigterm_stage2_run(void)
     fprintf(stderr,
             "exiting Boa normally (uptime %d seconds)\n",
             (int) (current_time - start_time));
-    if (chdir(tempdir) == -1)
-      perror ("chdir (tempdir) failed");
+    chdir(tempdir);
     clear_common_env();
     dump_mime();
     dump_passwd();
@@ -227,8 +239,7 @@ void sigint(int dummy)
     time(&current_time);
     log_error_time();
     fputs("caught SIGINT: shutting down\n", stderr);
-    if (chdir(tempdir) == -1)
-        perror ("chdir (tempdir) failed");
+    chdir(tempdir);
     exit(EXIT_FAILURE);
 }
 
@@ -251,6 +262,11 @@ void sigchld_run(void)
             fprintf(stderr, "reaping child %d: status %d\n", (int) pid,
                     child_status);
         }
+
+#if defined(CONFIG_DOMAIN_NAME_QUERY_SUPPORT)
+	Confirm_Chld_termniated();
+#endif
+
     return;
 }
 
@@ -258,7 +274,14 @@ void sigalrm(int dummy)
 {
     sigalrm_flag = 1;
 }
-
+#ifdef 	CONFIG_RTL_ULINKER
+extern int wait_reinit;
+void siginit(int dummy)
+{
+	wait_reinit = 30;
+}
+#endif
+/*
 void sigalrm_run(void)
 {
     time(&current_time);
@@ -267,4 +290,107 @@ void sigalrm_run(void)
             status.requests, status.errors);
     hash_show_stats();
     sigalrm_flag = 0;
+}
+*/
+
+#if 0//defined(CONFIG_4G_LTE_SUPPORT)
+#include <sys/ioctl.h>
+#include <net/if.h>
+void lte_process()
+{
+	static int wait_reinit = 0;
+	static int needReboot_pre;
+
+	int sock_fd, lte = -1, wan_dhcp = -1;
+	struct stat fst;
+	struct ifreq ifr;
+
+	apmib_get( MIB_LTE4G,	 (void *)&lte);
+	apmib_get( MIB_WAN_DHCP, (void *)&wan_dhcp);
+
+	if (wan_dhcp != DHCP_CLIENT || lte != 1)
+		return;
+
+	if(wait_reinit == 0) {
+		strncpy(ifr.ifr_name, "usb0", IFNAMSIZ);
+
+	    if((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	        printf("Create socket failed!\n");
+			return;
+		}
+
+		if(ioctl(sock_fd, SIOCGIFFLAGS, ifr.ifr_name) < 0) {
+	        //printf("get SIOCGIFFLAGS fail!\n");
+			system("killall udhcpc > /dev/null 2>&1");
+			system("rm /etc/udhcpc/udhcpc-usb0.pid > /dev/null 2>&1");
+			close(sock_fd);
+			return;
+		}
+
+		close(sock_fd);
+
+		if ((stat("/etc/udhcpc/udhcpc-usb0.pid", &fst) < 0)) {
+			//printf("[%s:%d] reinit, run_init_script_flag[%d], needReboot[%d]\n", __FUNCTION__, __LINE__, run_init_script_flag, needReboot);
+			if (needReboot == 0 && needReboot_pre == 1) {
+				wait_reinit = 8;
+			}
+			else if (needReboot == 0 && needReboot_pre == 0) {
+				wait_reinit = 5;
+				system("init.sh gw all");
+			}
+		}
+	}
+
+	if (wait_reinit > 0) {
+		//printf("[%s:%d] wait_reinit=%d\n", __FUNCTION__, __LINE__, wait_reinit);
+		wait_reinit--;
+	}
+	needReboot_pre = needReboot;
+}
+#endif /* #if defined(CONFIG_4G_LTE_SUPPORT) */
+
+#define TIME_SLOT_1M	60
+#define TIME_SLOT_1H	3600
+
+void sigalrm_run(void)
+{
+	static unsigned int count=0;
+	
+	count++;
+	sigalrm_flag = 0;
+#if defined(CONFIG_RTL_ULINKER)
+		ulinker_process();
+#elif defined(CONFIG_POCKET_ROUTER_SUPPORT)
+		pocketAPProcess();
+#endif
+
+#if 0//defined(CONFIG_4G_LTE_SUPPORT)
+	lte_process();
+#endif
+
+#ifdef CONFIG_RTL_P2P_SUPPORT	
+	/*0318 , 0317  
+	 for check if need start udhcpc for P2P client
+	 or 
+	 start udhcpd for P2P GO*/ 
+	p2p_dhcp_process();
+#endif
+
+#if defined(CONFIG_REPEATER_WPS_SUPPORT)
+	{
+		int wlan_mode_root, wlan_wsc_disabled_root, isRptEnabled1, isRptEnabled2;
+		apmib_get( MIB_WLAN_MODE, (void *)&wlan_mode_root); 
+		apmib_get( MIB_WLAN_WSC_DISABLE, (void *)&wlan_wsc_disabled_root);
+		apmib_get(MIB_REPEATER_ENABLED1, (void *)&isRptEnabled1);
+		apmib_get(MIB_REPEATER_ENABLED2, (void *)&isRptEnabled2);
+		if(wlan_wsc_disabled_root == 0 && (isRptEnabled1 == 1 || isRptEnabled2 == 1) 
+#if defined(CONFIG_ONLY_SUPPORT_CLIENT_REPEATER_WPS)
+			&& wlan_mode_root == CLIENT_MODE
+#endif
+		){
+			updateWlanifState("wlan0");
+		}
+	}
+#endif
+	alarm(1);
 }

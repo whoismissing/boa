@@ -1,0 +1,1074 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var qos_enable=<%getIndex("qosEnable")%>;
+var queue_br = 0;
+var ipv6_qos=<%getIndex("ipv6");%>;
+
+function checkClientRange(start,end)
+{
+  var start_d, end_d;
+  start_d = getDigit(start,4);
+  start_d += getDigit(start,3)*256;
+  start_d += getDigit(start,2)*256;
+  start_d += getDigit(start,1)*256;
+
+  end_d = getDigit(end,4);
+  end_d += getDigit(end,3)*256;
+  end_d += getDigit(end,2)*256;
+  end_d += getDigit(end,1)*256;
+
+  if ( start_d <= end_d )
+	return true;
+
+  return false;
+}
+
+
+function ipAddrClicked()
+{
+	enableTextField(document.formQosAdd.protocol);	
+ 	enableTextField(document.formQosAdd.sip);
+	enableTextField(document.formQosAdd.dip);
+	enableTextField(document.formQosAdd.sPortStart);
+	enableTextField(document.formQosAdd.sPortEnd);
+	enableTextField(document.formQosAdd.dPortStart);
+	enableTextField(document.formQosAdd.dPortEnd);
+	
+	disableTextField(document.formQosAdd.smac);
+	disableTextField(document.formQosAdd.dmac);
+	disableTextField(document.formQosAdd.phyport);
+	disableTextField(document.formQosAdd.dscp);
+	disableTextField(document.formQosAdd.vlan_pri);
+
+	disableTextField(document.formQosAdd.l3v4Prece);
+	disableTextField(document.formQosAdd.l3v6Prece);
+	if(ipv6_qos)
+		disableTextField(document.formQosAdd.flow_label);
+}
+
+function macAddrClicked()
+{
+	enableTextField(document.formQosAdd.smac);
+	enableTextField(document.formQosAdd.dmac);
+
+	disableTextField(document.formQosAdd.protocol);	
+ 	disableTextField(document.formQosAdd.sip);
+	disableTextField(document.formQosAdd.dip);
+	disableTextField(document.formQosAdd.phyport);
+ 	disableTextField(document.formQosAdd.dscp);
+	disableTextField(document.formQosAdd.vlan_pri);
+	disableTextField(document.formQosAdd.sPortStart);
+	disableTextField(document.formQosAdd.sPortEnd);
+	disableTextField(document.formQosAdd.dPortStart);
+	disableTextField(document.formQosAdd.dPortEnd);
+
+	disableTextField(document.formQosAdd.l3v4Prece);
+	disableTextField(document.formQosAdd.l3v6Prece);
+	if(ipv6_qos){
+		disableTextField(document.formQosAdd.flow_label);
+	}
+}
+
+function phyportClicked()
+{
+	enableTextField(document.formQosAdd.phyport);
+	
+	disableTextField(document.formQosAdd.protocol);	
+ 	disableTextField(document.formQosAdd.sip);
+	disableTextField(document.formQosAdd.dip);
+	disableTextField(document.formQosAdd.smac);
+	disableTextField(document.formQosAdd.dmac);
+	disableTextField(document.formQosAdd.dscp);
+	disableTextField(document.formQosAdd.vlan_pri);
+	disableTextField(document.formQosAdd.sPortStart);
+	disableTextField(document.formQosAdd.sPortEnd);
+	disableTextField(document.formQosAdd.dPortStart);
+	disableTextField(document.formQosAdd.dPortEnd);
+
+	disableTextField(document.formQosAdd.l3v4Prece);
+	disableTextField(document.formQosAdd.l3v6Prece);
+	if(ipv6_qos)
+		disableTextField(document.formQosAdd.flow_label);
+}
+
+function l3PreceClicked()
+{
+	enableTextField(document.formQosAdd.dscp);
+
+	if(ipv6_qos && (document.formQosAdd.version.value == 2)){
+		l3PreceShowDiv(1);
+		enableTextField(document.formQosAdd.l3v6Prece);
+		disableTextField(document.formQosAdd.l3v4Prece);
+		
+		enableTextField(document.formQosAdd.flow_label);
+	}
+	else if(ipv6_qos && (document.formQosAdd.version.value == 4)){
+		l3PreceShowDiv(0);
+		disableTextField(document.formQosAdd.l3v4Prece);
+		disableTextField(document.formQosAdd.l3v6Prece);
+		disableTextField(document.formQosAdd.flow_label);
+	}
+	else{
+		l3PreceShowDiv(0);
+		enableTextField(document.formQosAdd.l3v4Prece);
+		disableTextField(document.formQosAdd.l3v6Prece);
+		
+		if(ipv6_qos)
+			disableTextField(document.formQosAdd.flow_label);
+	}
+
+	disableTextField(document.formQosAdd.protocol);	
+ 	disableTextField(document.formQosAdd.sip);
+	disableTextField(document.formQosAdd.dip);
+	disableTextField(document.formQosAdd.smac);
+	disableTextField(document.formQosAdd.dmac);
+	disableTextField(document.formQosAdd.phyport);
+	disableTextField(document.formQosAdd.vlan_pri);
+	disableTextField(document.formQosAdd.sPortStart);
+	disableTextField(document.formQosAdd.sPortEnd);
+	disableTextField(document.formQosAdd.dPortStart);
+	disableTextField(document.formQosAdd.dPortEnd);
+}
+
+function onePClicked()
+{
+	enableTextField(document.formQosAdd.vlan_pri);
+
+	disableTextField(document.formQosAdd.protocol);	
+ 	disableTextField(document.formQosAdd.sip);
+	disableTextField(document.formQosAdd.dip);
+	disableTextField(document.formQosAdd.smac);
+	disableTextField(document.formQosAdd.dmac);
+	disableTextField(document.formQosAdd.phyport);
+	disableTextField(document.formQosAdd.dscp);
+	disableTextField(document.formQosAdd.sPortStart);
+	disableTextField(document.formQosAdd.sPortEnd);
+	disableTextField(document.formQosAdd.dPortStart);
+	disableTextField(document.formQosAdd.dPortEnd);
+
+	if(ipv6_qos)
+		disableTextField(document.formQosAdd.flow_label);
+
+	l3PreceShowDiv(0);
+	disableTextField(document.formQosAdd.l3v4Prece);
+	disableTextField(document.formQosAdd.l3v6Prece);
+}
+
+function addRuleClick()
+{
+	if((document.formQosAdd.v4Version.value == 1) || (ipv6_qos && (document.formQosAdd.version.value == 1))){	//ipv4
+		if(document.formQosAdd.sip.value && 
+		(checkIpAddr(document.formQosAdd.sip, 'Invalid Source IPv4 address') == false))
+			return false;
+
+		if(document.formQosAdd.dip.value &&
+		(checkIpAddr(document.formQosAdd.dip, 'Invalid Destination IPv4 address') == false))
+			return false;
+
+		if(document.formQosAdd.dscp.value && (document.formQosAdd.l3v4Prece.value == 1) &&
+		!checkFieldDigitRange(document.formQosAdd.dscp,0,63,"ipv4 dscp invaild!")){
+			document.formQosAdd.dscp.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.dscp.value && (document.formQosAdd.l3v4Prece.value == 2) &&
+		!checkFieldDigitRange(document.formQosAdd.dscp,0,255,"ipv4 tos invaild!")){
+			document.formQosAdd.dscp.focus();
+			return false;
+		}
+
+		if(queue_br == 0){
+			if(document.formQosAdd.sip.value && document.formQosAdd.queue.value<10)	// uplink
+			{	
+				var LAN_IP = ipv4_to_unsigned_integer("<% getInfo("ip"); %>");
+				var LAN_MASK = ipv4_to_unsigned_integer("<% getInfo("mask"); %>");	
+				
+				var tarIp = ipv4_to_unsigned_integer(document.formQosAdd.sip.value);
+				if ((tarIp & LAN_MASK) != (LAN_IP & LAN_MASK))
+				{
+					alert("Invalid Source IPv4 address! It should be set within the current subnet.");
+					document.formQosAdd.sip.focus();
+					return false;
+				}
+			}
+			else if(document.formQosAdd.dip.value && document.formQosAdd.queue.value>10)	// downlink
+			{
+				var LAN_IP = ipv4_to_unsigned_integer("<% getInfo("ip"); %>");
+				var LAN_MASK = ipv4_to_unsigned_integer("<% getInfo("mask"); %>");	
+				
+				var tarIp = ipv4_to_unsigned_integer(document.formQosAdd.dip.value);
+				if ((tarIp & LAN_MASK) != (LAN_IP & LAN_MASK))
+				{
+					alert("Invalid Destination IPv4 address! It should be set within the current subnet.");
+					document.formQosAdd.dip.focus();
+					return false;
+				}
+			}
+		}
+	}
+	else if(ipv6_qos && (document.formQosAdd.version.value == 2)){	 //ipv6
+		if(document.formQosAdd.sip.value && (checkIPv6(document.formQosAdd.sip.value) == false)){
+			alert("Invalid Source IPv6 address!");
+			document.formQosAdd.sip.focus();
+	   	 	return false;
+		}
+
+		if(document.formQosAdd.dip.value && (checkIPv6(document.formQosAdd.dip.value) == false)){
+			alert("Invalid Destination IPv6 address!");
+			document.formQosAdd.dip.focus();
+	   	 	return false;
+		}
+
+		if(document.formQosAdd.dscp.value && (document.formQosAdd.l3v6Prece.value == 1) &&
+		!checkFieldDigitRange(document.formQosAdd.dscp,0,63,"ipv6 dscp invaild!")){
+			document.formQosAdd.dscp.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.dscp.value && (document.formQosAdd.l3v6Prece.value == 2) &&
+		!checkFieldDigitRange(document.formQosAdd.dscp,0,255,"ipv6 traffic class invaild!")){
+			document.formQosAdd.dscp.focus();
+			return false;
+		}
+	}
+
+	if(!document.formQosAdd.sPortStart.value && document.formQosAdd.sPortEnd.value)
+	{
+		document.formQosAdd.sPortStart.focus();
+		alert("The field also Should be set");
+		return false;
+	}
+		
+	if(!document.formQosAdd.dPortStart.value && document.formQosAdd.dPortEnd.value)
+	{
+		document.formQosAdd.dPortStart.focus();
+		alert("The field also Should be set");
+		return false;
+	}
+		
+	if(document.formQosAdd.sPortStart.value && !checkSetBothOrNone(document.formQosAdd.sPortStart,document.formQosAdd.sPortEnd))	
+		return false;
+
+	if(document.formQosAdd.dPortStart.value &&!checkSetBothOrNone(document.formQosAdd.dPortStart,document.formQosAdd.dPortEnd))	
+		return false;
+
+	if (document.formQosAdd.sPortStart.value && !checkClientRange(document.formQosAdd.sPortStart.value,document.formQosAdd.sPortEnd.value) ) {
+		alert('Invalid Source port range!\nEnding port should be greater than starting port.');
+		document.formQosAdd.sPortStart.focus();
+		return false;
+	}
+
+	if (document.formQosAdd.dPortStart.value && !checkClientRange(document.formQosAdd.dPortStart.value,document.formQosAdd.dPortEnd.value) ) {
+		alert('Invalid Destination port range!\nEnding port should be greater than starting port.');
+		document.formQosAdd.dPortStart.focus();
+		return false;
+	}
+
+	if(document.formQosAdd.sPortStart.value &&!checkFieldDigitRange(document.formQosAdd.sPortStart,1,65535,"invalid source port!"))
+	{
+		document.formQosAdd.sPortStart.focus();
+		return false;
+	}
+	if(document.formQosAdd.sPortEnd.value &&!checkFieldDigitRange(document.formQosAdd.sPortEnd,1,65535,"invalid source port!"))
+	{	
+		document.formQosAdd.sPortEnd.focus();
+		return false;
+	}
+		
+	if(document.formQosAdd.dPortStart.value &&!checkFieldDigitRange(document.formQosAdd.dPortStart,1,65535,"invalid destination port!"))
+	{
+		document.formQosAdd.dPortStart.focus();
+		return false;
+	}
+	
+	if(document.formQosAdd.dPortEnd.value &&!checkFieldDigitRange(document.formQosAdd.dPortEnd,1,65535,"invalid destination port!"))
+	{
+		document.formQosAdd.dPortEnd.focus();
+		return false;
+	}
+
+	if((document.formQosAdd.sPortStart.value || document.formQosAdd.dPortStart.value) && (document.formQosAdd.protocol.value == -1)){
+		alert("Must specify protocol when config port.");
+		document.formQosAdd.protocol.focus();
+		return false;
+	}
+
+	if(document.formQosAdd.smac.value && document.formQosAdd.smac.value.length < 12)
+	{
+		alert("Input Source MAC address is not complete. It should be 12 digits in hex.");
+		document.formQosAdd.smac.focus();
+		return false;
+	}
+	
+	if(document.formQosAdd.smac.value &&!checkMacAddr(document.formQosAdd.smac,"source mac address invalid!"))
+	{
+		document.formQosAdd.smac.focus();
+		return false;
+	}
+	
+	if(document.formQosAdd.dmac.value && document.formQosAdd.dmac.value.length < 12)
+	{
+		alert("Input Destination MAC address is not complete. It should be 12 digits in hex.");
+		document.formQosAdd.smac.focus();
+		return false;
+	}
+
+	if(document.formQosAdd.dmac.value &&!checkMacAddr(document.formQosAdd.dmac,"destination mac address invalid!"))
+	{
+		document.formQosAdd.dmac.focus();
+		return false;
+	}
+
+	if(document.formQosAdd.queue.value<10)		// uplink
+	{
+		if(document.formQosAdd.phyport.value && !checkFieldDigitRange(document.formQosAdd.phyport,0,3,"uplink phyport invalid!"))
+		{
+			document.formQosAdd.phyport.focus();
+			return false;
+		}
+	}
+	else if(document.formQosAdd.queue.value>10)		// downlink
+	{
+		if(document.formQosAdd.phyport.value && !checkFieldDigitRange(document.formQosAdd.phyport,4,4,"downlink phyport invalid!"))
+		{
+			document.formQosAdd.phyport.focus();
+			return false;
+		}
+	}
+
+	if(document.formQosAdd.vlan_pri.value &&!checkFieldDigitRange(document.formQosAdd.vlan_pri,0,7,"vlan priority invaild!"))
+	{
+		document.formQosAdd.vlan_pri.focus();
+		return false;
+	}
+
+	/* flow lable range: 0 - 0xFFFFF */
+	if(ipv6_qos && document.formQosAdd.flow_label.value && !checkFieldDigitRange(document.formQosAdd.flow_label,0,1048575,"flow label invaild!"))
+	{
+		document.formQosAdd.flow_label.focus();
+		return false;
+	}
+/*
+	if(document.formQosAdd.vlan_id.value &&!checkFieldDigitRange(document.formQosAdd.vlan_id,1,4095,"vlan ID invaild!"))
+	{
+		document.formQosAdd.vlan_id.focus();
+		return false;
+	}
+*/
+	if(document.formQosAdd.remark_dscp.value &&!checkFieldDigitRange(document.formQosAdd.remark_dscp,0,63,"dscp remark invaild!"))
+	{
+		document.formQosAdd.remark_dscp.focus();
+		return false;
+	}
+
+	if(document.formQosAdd.remark_vlan_pri.value &&!checkFieldDigitRange(document.formQosAdd.remark_vlan_pri,0,7,"dscp remark invaild!"))
+	{
+		document.formQosAdd.remark_vlan_pri.focus();
+		return false;
+	}
+
+	if(ipv6_qos){
+		if(document.formQosAdd.protocol.value != -1 || document.formQosAdd.sip.value || document.formQosAdd.dip.value
+		|| document.formQosAdd.sPortStart.value || document.formQosAdd.dPortStart.value || document.formQosAdd.smac.value
+		|| document.formQosAdd.dmac.value || document.formQosAdd.phyport.value || document.formQosAdd.dscp.value
+		|| document.formQosAdd.vlan_pri.value || document.formQosAdd.flow_label.value
+	/*	|| document.formQosAdd.vlan_id.value */){
+			if(document.formQosAdd.queue.value == 0){
+				alert("queue cannot be empty!");
+				return false;
+			}
+
+			if((document.formQosAdd.v4Version.value == -1) && (document.formQosAdd.version.value == -1)){
+				alert("must specify ip version!");
+				return false;
+			}
+		}
+
+		if(((document.formQosAdd.v4Version.value != -1) || (document.formQosAdd.version.value != -1)) && (document.formQosAdd.protocol.value == -1) && !document.formQosAdd.sip.value 
+		&& !document.formQosAdd.dip.value && !document.formQosAdd.sPortStart.value && !document.formQosAdd.dPortStart.value 
+		&& !document.formQosAdd.smac.value && !document.formQosAdd.dmac.value && !document.formQosAdd.phyport.value 
+		&& !document.formQosAdd.dscp.value && !document.formQosAdd.vlan_pri.value && !document.formQosAdd.flow_label.value){
+			alert("must set classification rules under specified IpVersion!");
+			return false;
+		}
+	}
+	else{
+		if(document.formQosAdd.protocol.value != -1 || document.formQosAdd.sip.value || document.formQosAdd.dip.value
+		|| document.formQosAdd.sPortStart.value || document.formQosAdd.dPortStart.value || document.formQosAdd.smac.value
+		|| document.formQosAdd.dmac.value || document.formQosAdd.phyport.value || document.formQosAdd.dscp.value
+		|| document.formQosAdd.vlan_pri.value 
+	/*	|| document.formQosAdd.vlan_id.value */){
+			if(document.formQosAdd.queue.value == 0){
+				alert("queue cannot be empty!");
+				return false;
+			}
+
+			if(document.formQosAdd.v4Version.value == -1){
+				alert("must specify ip version!");
+				return false;
+			}
+		}
+
+		if((document.formQosAdd.v4Version.value != -1) && (document.formQosAdd.protocol.value == -1) && !document.formQosAdd.sip.value 
+		&& !document.formQosAdd.dip.value && !document.formQosAdd.sPortStart.value && !document.formQosAdd.dPortStart.value 
+		&& !document.formQosAdd.smac.value && !document.formQosAdd.dmac.value && !document.formQosAdd.phyport.value 
+		&& !document.formQosAdd.dscp.value && !document.formQosAdd.vlan_pri.value){
+			alert("must set classification rules under specified IpVersion!");
+			return false;
+		}
+	}
+		
+	return true;
+}
+
+function deleteClick()
+{
+	if ( !confirm('Do you really want to delete the selected entry?') )
+		return false;
+	else
+		return true;
+}
+
+function deleteAllClick()
+{
+   	if ( !confirm('Do you really want to delete the all entries?') )
+		return false;
+ 	else
+		return true;
+}
+
+function disableQosDelButton()
+{
+	disableButton(document.formQosDel.deleteSel);
+	disableButton(document.formQosDel.deleteAll);
+}
+
+function addrTypeShowDiv(flag)
+{
+	if(flag)
+		show_div(1,"type_div"); 
+	else
+		show_div(0,"type_div"); 
+}
+
+function l3PreceShowDiv(flag)
+{
+	if(flag){
+		show_div(1,"l3v6_div");
+		show_div(0,"l3v4_div");
+	}
+	else{
+		show_div(1,"l3v4_div");
+		show_div(0,"l3v6_div");
+	}
+}
+
+function ipv4VersionShowDiv(flag)
+{
+	if(flag){
+		show_div(1,"ipv4Version_div");
+		show_div(0,"ipVersion_div");
+	}
+	else{
+		show_div(0,"ipv4Version_div");
+		show_div(1,"ipVersion_div");
+	}	
+}
+
+function resetDscp()
+{
+	document.formQosAdd.dscp.value = "";
+}
+
+function updateQosState()
+{
+	queue_br = 0;
+	
+	if(qos_enable)
+	{
+		enableTextField(document.formQosAdd.queue);
+		enableTextField(document.formQosAdd.protocol);
+		enableTextField(document.formQosAdd.sip);
+		enableTextField(document.formQosAdd.sPortStart);
+		enableTextField(document.formQosAdd.sPortEnd);
+		enableTextField(document.formQosAdd.dip);
+		enableTextField(document.formQosAdd.dPortStart);
+		enableTextField(document.formQosAdd.dPortEnd);
+		enableTextField(document.formQosAdd.smac);
+		enableTextField(document.formQosAdd.dmac);
+		enableTextField(document.formQosAdd.phyport);
+		enableTextField(document.formQosAdd.dscp);
+		enableTextField(document.formQosAdd.vlan_pri);
+		//enableTextField(document.formQosAdd.vlan_id);		
+		enableTextField(document.formQosAdd.remark_dscp);
+		enableTextField(document.formQosAdd.remark_vlan_pri);
+
+		if(document.formQosAdd.queue.value > 0 && document.formQosAdd.queue.value < 9){
+			if(ipv6_qos && (document.formQosAdd.queue.value == 1 && (<% getIndex("queueV6Enable", "up", "first"); %> == 1) ||
+			   document.formQosAdd.queue.value == 2 && (<% getIndex("queueV6Enable", "up", "second"); %> == 1) ||
+			   document.formQosAdd.queue.value == 3 && (<% getIndex("queueV6Enable", "up", "third"); %> == 1) ||
+			   document.formQosAdd.queue.value == 4 && (<% getIndex("queueV6Enable", "up", "forth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 5 && (<% getIndex("queueV6Enable", "up", "fifth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 6 && (<% getIndex("queueV6Enable", "up", "sixth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 7 && (<% getIndex("queueV6Enable", "up", "seventh"); %> == 1) ||
+			   document.formQosAdd.queue.value == 8 && (<% getIndex("queueV6Enable", "up", "eighth"); %> == 1))){
+
+				document.formQosAdd.v4Version.value = -1;
+				disableTextField(document.formQosAdd.v4Version);
+				
+				enableTextField(document.formQosAdd.version);
+			   	ipv4VersionShowDiv(0);
+			}
+			else{
+				enableTextField(document.formQosAdd.v4Version);
+				
+				document.formQosAdd.version.value = -1;
+				disableTextField(document.formQosAdd.version);
+				ipv4VersionShowDiv(1);
+			}
+		}
+		else if(document.formQosAdd.queue.value > 10 && document.formQosAdd.queue.value < 19){
+			if(ipv6_qos && (document.formQosAdd.queue.value == 11 && (<% getIndex("queueV6Enable", "down", "first"); %> == 1) ||
+			   document.formQosAdd.queue.value == 12 && (<% getIndex("queueV6Enable", "down", "second"); %> == 1) ||
+			   document.formQosAdd.queue.value == 13 && (<% getIndex("queueV6Enable", "down", "third"); %> == 1) ||
+			   document.formQosAdd.queue.value == 14 && (<% getIndex("queueV6Enable", "down", "forth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 15 && (<% getIndex("queueV6Enable", "down", "fifth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 16 && (<% getIndex("queueV6Enable", "down", "sixth"); %> == 1) ||
+			   document.formQosAdd.queue.value == 17 && (<% getIndex("queueV6Enable", "down", "seventh"); %> == 1) ||
+			   document.formQosAdd.queue.value == 18 && (<% getIndex("queueV6Enable", "down", "eighth"); %> == 1))){
+
+				document.formQosAdd.v4Version.value = -1;
+				disableTextField(document.formQosAdd.v4Version);
+				
+				enableTextField(document.formQosAdd.version);
+			   	ipv4VersionShowDiv(0);
+			}
+			else{
+				enableTextField(document.formQosAdd.v4Version);
+				
+				document.formQosAdd.version.value = -1;
+				disableTextField(document.formQosAdd.version);
+				ipv4VersionShowDiv(1);
+			}
+		}
+		else{
+			enableTextField(document.formQosAdd.v4Version);
+			
+			document.formQosAdd.version.value = -1;
+			disableTextField(document.formQosAdd.version);
+			ipv4VersionShowDiv(1);
+		}
+		
+
+		if(document.formQosAdd.queue.value > 0 && document.formQosAdd.queue.value < 9){
+			if((document.formQosAdd.version.value == 1 || document.formQosAdd.v4Version.value == 1) && 
+			  (document.formQosAdd.queue.value == 1 && (<% getIndex("queueType", "up", "1"); %> & 1) ||
+			   document.formQosAdd.queue.value == 2 && (<% getIndex("queueType", "up", "2"); %> & 1) ||
+			   document.formQosAdd.queue.value == 3 && (<% getIndex("queueType", "up", "3"); %> & 1) ||
+			   document.formQosAdd.queue.value == 4 && (<% getIndex("queueType", "up", "4"); %> & 1) ||
+			   document.formQosAdd.queue.value == 5 && (<% getIndex("queueType", "up", "5"); %> & 1) ||
+			   document.formQosAdd.queue.value == 6 && (<% getIndex("queueType", "up", "6"); %> & 1) ||
+			   document.formQosAdd.queue.value == 7 && (<% getIndex("queueType", "up", "7"); %> & 1) ||
+			   document.formQosAdd.queue.value == 8 && (<% getIndex("queueType", "up", "8"); %> & 1))){
+
+			    //v4 hw bridge
+				ipAddrClicked()
+				addrTypeShowDiv(1);
+				queue_br = 1;
+
+				if(ipv6_qos){
+					enableTextField(document.formQosAdd.addressType[0]);
+					enableTextField(document.formQosAdd.addressType[3]);
+
+					disableTextField(document.formQosAdd.addressType[1]);
+					disableTextField(document.formQosAdd.addressType[2]);
+					disableTextField(document.formQosAdd.addressType[4]);
+				}
+				else{
+					enableTextField(document.formQosAdd.addressType[0]);
+					enableTextField(document.formQosAdd.addressType[1]);
+					enableTextField(document.formQosAdd.addressType[2]);
+					enableTextField(document.formQosAdd.addressType[3]);
+					enableTextField(document.formQosAdd.addressType[4]);
+				}
+			}
+			else if(ipv6_qos && document.formQosAdd.version.value == 2){
+				// v6 hw routing + v6 hw bridge
+				if(document.formQosAdd.queue.value == 1 && (<% getIndex("queueType", "up", "1"); %> & 4) ||
+				   document.formQosAdd.queue.value == 2 && (<% getIndex("queueType", "up", "2"); %> & 4) ||
+				   document.formQosAdd.queue.value == 3 && (<% getIndex("queueType", "up", "3"); %> & 4) ||
+				   document.formQosAdd.queue.value == 4 && (<% getIndex("queueType", "up", "4"); %> & 4) ||
+				   document.formQosAdd.queue.value == 5 && (<% getIndex("queueType", "up", "5"); %> & 4) ||
+				   document.formQosAdd.queue.value == 6 && (<% getIndex("queueType", "up", "6"); %> & 4) ||
+				   document.formQosAdd.queue.value == 7 && (<% getIndex("queueType", "up", "7"); %> & 4) ||
+				   document.formQosAdd.queue.value == 8 && (<% getIndex("queueType", "up", "8"); %> & 4)){
+
+				   	ipAddrClicked()
+					addrTypeShowDiv(1);
+
+					enableTextField(document.formQosAdd.addressType[0]);
+					enableTextField(document.formQosAdd.addressType[3]);
+
+					disableTextField(document.formQosAdd.addressType[1]);
+					disableTextField(document.formQosAdd.addressType[2]);
+					disableTextField(document.formQosAdd.addressType[4]);
+					//disableTextField(document.formQosAdd.vlan_pri);
+				}
+				else{
+					addrTypeShowDiv(0);
+				}
+			}
+			else if(ipv6_qos && document.formQosAdd.version.value == 4){
+				/* 	classification works under both ipv4 & ipv6. */
+				addrTypeShowDiv(1);
+				macAddrClicked();
+
+				disableTextField(document.formQosAdd.addressType[0]);
+				disableTextField(document.formQosAdd.addressType[3]);
+
+				enableTextField(document.formQosAdd.addressType[1]);
+				enableTextField(document.formQosAdd.addressType[2]);
+				enableTextField(document.formQosAdd.addressType[4]);
+			}
+			else{
+				addrTypeShowDiv(0);
+				// pppoe
+				if(document.formQosAdd.queue.value == 1 && (<% getIndex("queueType", "up", "1"); %> & 2) ||
+				   document.formQosAdd.queue.value == 2 && (<% getIndex("queueType", "up", "2"); %> & 2) ||
+				   document.formQosAdd.queue.value == 3 && (<% getIndex("queueType", "up", "3"); %> & 2) ||
+				   document.formQosAdd.queue.value == 4 && (<% getIndex("queueType", "up", "4"); %> & 2) ||
+				   document.formQosAdd.queue.value == 5 && (<% getIndex("queueType", "up", "5"); %> & 2) ||
+				   document.formQosAdd.queue.value == 6 && (<% getIndex("queueType", "up", "6"); %> & 2) ||
+				   document.formQosAdd.queue.value == 7 && (<% getIndex("queueType", "up", "7"); %> & 2) ||
+				   document.formQosAdd.queue.value == 8 && (<% getIndex("queueType", "up", "8"); %> & 2)){
+
+					// pppoe server's mac address is not required, thus won't be learned by DUT.
+				   disableTextField(document.formQosAdd.dmac);
+				}
+			}
+		}
+		else if(document.formQosAdd.queue.value > 10 && document.formQosAdd.queue.value < 19){
+			// currently don't support downlink remark function.
+			disableTextField(document.formQosAdd.remark_dscp);
+			disableTextField(document.formQosAdd.remark_vlan_pri);
+
+			if(document.formQosAdd.queue.value == 11 && (<% getIndex("queueType", "down", "1"); %> & 1) ||
+			   document.formQosAdd.queue.value == 12 && (<% getIndex("queueType", "down", "2"); %> & 1)	||
+			   document.formQosAdd.queue.value == 13 && (<% getIndex("queueType", "down", "3"); %> & 1)	||
+			   document.formQosAdd.queue.value == 14 && (<% getIndex("queueType", "down", "4"); %> & 1)	||
+			   document.formQosAdd.queue.value == 15 && (<% getIndex("queueType", "down", "5"); %> & 1)	||
+			   document.formQosAdd.queue.value == 16 && (<% getIndex("queueType", "down", "6"); %> & 1)	||
+			   document.formQosAdd.queue.value == 17 && (<% getIndex("queueType", "down", "7"); %> & 1)	||
+			   document.formQosAdd.queue.value == 18 && (<% getIndex("queueType", "down", "8"); %> & 1)){
+
+				enableTextField(document.formQosAdd.addressType[0]);
+				enableTextField(document.formQosAdd.addressType[3]);
+
+				disableTextField(document.formQosAdd.addressType[1]);
+				disableTextField(document.formQosAdd.addressType[2]);
+				disableTextField(document.formQosAdd.addressType[4]);
+					
+				ipAddrClicked()
+				addrTypeShowDiv(1);
+				queue_br = 1;
+			}
+			else if(ipv6_qos && document.formQosAdd.version.value == 2){
+				if(document.formQosAdd.queue.value == 11 && (<% getIndex("queueType", "down", "1"); %> & 4) ||
+				   document.formQosAdd.queue.value == 12 && (<% getIndex("queueType", "down", "2"); %> & 4) ||
+				   document.formQosAdd.queue.value == 13 && (<% getIndex("queueType", "down", "3"); %> & 4) ||
+				   document.formQosAdd.queue.value == 14 && (<% getIndex("queueType", "down", "4"); %> & 4) ||
+				   document.formQosAdd.queue.value == 15 && (<% getIndex("queueType", "down", "5"); %> & 4) ||
+				   document.formQosAdd.queue.value == 16 && (<% getIndex("queueType", "down", "6"); %> & 4) ||
+				   document.formQosAdd.queue.value == 17 && (<% getIndex("queueType", "down", "7"); %> & 4) ||
+				   document.formQosAdd.queue.value == 18 && (<% getIndex("queueType", "down", "8"); %> & 4)){
+
+					ipAddrClicked()
+					addrTypeShowDiv(1);
+
+					enableTextField(document.formQosAdd.addressType[0]);
+					enableTextField(document.formQosAdd.addressType[3]);
+
+					disableTextField(document.formQosAdd.addressType[1]);
+					disableTextField(document.formQosAdd.addressType[2]);
+					disableTextField(document.formQosAdd.addressType[4]);
+					//disableTextField(document.formQosAdd.vlan_pri);
+				}
+			}
+			else if(ipv6_qos && (document.formQosAdd.version.value == 4)){
+				/* 	classification works under both ipv4 & ipv6. */
+				addrTypeShowDiv(1);
+				macAddrClicked();
+
+				disableTextField(document.formQosAdd.addressType[0]);
+				disableTextField(document.formQosAdd.addressType[3]);
+
+				enableTextField(document.formQosAdd.addressType[1]);
+				enableTextField(document.formQosAdd.addressType[2]);
+				enableTextField(document.formQosAdd.addressType[4]);
+			}
+			else{
+				addrTypeShowDiv(0);
+
+				if(document.formQosAdd.queue.value == 11 && (<% getIndex("queueType", "down", "1"); %> & 2) ||
+				   document.formQosAdd.queue.value == 12 && (<% getIndex("queueType", "down", "2"); %> & 2) ||
+				   document.formQosAdd.queue.value == 13 && (<% getIndex("queueType", "down", "3"); %> & 2) ||
+				   document.formQosAdd.queue.value == 14 && (<% getIndex("queueType", "down", "4"); %> & 2) ||
+				   document.formQosAdd.queue.value == 15 && (<% getIndex("queueType", "down", "5"); %> & 2) ||
+				   document.formQosAdd.queue.value == 16 && (<% getIndex("queueType", "down", "6"); %> & 2) ||
+				   document.formQosAdd.queue.value == 17 && (<% getIndex("queueType", "down", "7"); %> & 2) ||
+				   document.formQosAdd.queue.value == 18 && (<% getIndex("queueType", "down", "8"); %> & 2)){
+
+				   // pppoe server's mac address is not required, thus won't be learned by DUT.
+				   // phyport is retrived by mac address, too
+				   disableTextField(document.formQosAdd.smac);
+				   disableTextField(document.formQosAdd.phyport);
+				}
+			}
+		}
+
+		if(ipv6_qos && (document.formQosAdd.version.value == 2)){
+			l3PreceShowDiv(1);
+			enableTextField(document.formQosAdd.l3v6Prece);
+			disableTextField(document.formQosAdd.l3v4Prece);
+			
+			enableTextField(document.formQosAdd.flow_label);
+		}
+		else{
+			l3PreceShowDiv(0);
+			enableTextField(document.formQosAdd.l3v4Prece);
+			disableTextField(document.formQosAdd.l3v6Prece);
+
+			if(ipv6_qos)
+				disableTextField(document.formQosAdd.flow_label);
+		}
+	}
+	else
+	{
+		disableTextField(document.formQosAdd.queue);
+		disableTextField(document.formQosAdd.version);
+		disableTextField(document.formQosAdd.v4Version);
+		disableTextField(document.formQosAdd.protocol);
+		disableTextField(document.formQosAdd.sip);
+		disableTextField(document.formQosAdd.sPortStart);
+		disableTextField(document.formQosAdd.sPortEnd);
+		disableTextField(document.formQosAdd.dip);
+		disableTextField(document.formQosAdd.dPortStart);
+		disableTextField(document.formQosAdd.dPortEnd);
+		disableTextField(document.formQosAdd.smac);
+		disableTextField(document.formQosAdd.dmac);
+		disableTextField(document.formQosAdd.phyport);
+		disableTextField(document.formQosAdd.dscp);
+		disableTextField(document.formQosAdd.vlan_pri);
+		//disableTextField(document.formQosAdd.vlan_id);
+		disableTextField(document.formQosAdd.remark_dscp);
+		disableTextField(document.formQosAdd.remark_vlan_pri);
+		if(ipv6_qos)
+			disableTextField(document.formQosAdd.flow_label);
+		addrTypeShowDiv(0);
+
+		ipv4VersionShowDiv(1);
+		l3PreceShowDiv(0);
+
+		disableTextField(document.formQosAdd.l3v4Prece);
+		disableTextField(document.formQosAdd.l3v6Prece);
+	}
+}
+
+function Load_Setting()
+{
+	updateQosState();
+}
+</script>
+</head>
+
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2>QoS Classification</h2>
+
+<table border=0 width="550" cellspacing=4 cellpadding=0>
+<tr><td><font size=2>
+ This page is used to configure qos classification rule.
+</font></td></tr>
+
+
+<table border=0 width=500>
+  <tr><td><hr size=1 noshade align=top></td></tr>
+
+<form action=/boafrm/formQosRule method=POST name="formQosAdd">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_classification.htm" name="submit-url">
+</table>
+
+<table border=0 width=600>
+	<tr>
+      <td width="45%"><font size=2><b>QoS Classification Rule Setting:</b></font></font></td>
+      <td>&nbsp;</td>
+  	</tr>
+	<tr>
+       <td width="30%" ><font size=2>
+        <b>Transimission:</b></font></td>
+       <td width="70%"><font size=2><select style="width:90px" size="1" name="queue" onChange="updateQosState(this)">
+  <script type="text/javascript">
+		if(<% getIndex("validQueExist"); %>){
+			if(<% getIndex("queueEnable", "up", "first"); %>)
+				document.write("<option value=\"1\">queue 1</option>");
+			if(<% getIndex("queueEnable", "up", "second"); %>)
+				document.write("<option value=\"2\">queue 2</option>");
+			if(<% getIndex("queueEnable", "up", "third"); %>)
+				document.write("<option value=\"3\">queue 3</option>");
+			if(<% getIndex("queueEnable", "up", "forth"); %>)
+				document.write("<option value=\"4\">queue 4</option>");
+			if(<% getIndex("queueEnable", "up", "fifth"); %>)
+				document.write("<option value=\"5\">queue 5</option>");
+			if(<% getIndex("queueEnable", "up", "sixth"); %>)
+				document.write("<option value=\"6\">queue 6</option>");
+			if(<% getIndex("queueEnable", "up", "seventh"); %>)
+				document.write("<option value=\"7\">queue 7</option>");
+			if(<% getIndex("queueEnable", "up", "eighth"); %>)
+				document.write("<option value=\"8\">queue 8</option>");
+
+			if(<% getIndex("queueEnable", "down", "first"); %>)
+				document.write("<option value=\"11\">queue 11</option>");
+			if(<% getIndex("queueEnable", "down", "second"); %>)
+				document.write("<option value=\"12\">queue 12</option>");
+			if(<% getIndex("queueEnable", "down", "third"); %>)
+				document.write("<option value=\"13\">queue 13</option>");
+			if(<% getIndex("queueEnable", "down", "forth"); %>)
+				document.write("<option value=\"14\">queue 14</option>");
+			if(<% getIndex("queueEnable", "down", "fifth"); %>)
+				document.write("<option value=\"15\">queue 15</option>");
+			if(<% getIndex("queueEnable", "down", "sixth"); %>)
+				document.write("<option value=\"16\">queue 16</option>");
+			if(<% getIndex("queueEnable", "down", "seventh"); %>)
+				document.write("<option value=\"17\">queue 17</option>");
+			if(<% getIndex("queueEnable", "down", "eighth"); %>)
+				document.write("<option value=\"18\">queue 18</option>");
+			
+		}
+		else
+			document.write("<option value=\"0\">No Available</option>");
+</script>
+	</select></td>
+    </tr>
+</table>
+
+<span id = "ipv4Version_div" class = "off" >  
+	<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>IpVersion:</b></font></td>
+		<td>
+      	<select name="v4Version" style="width:90px" ONCLICK="updateQosState(this)">
+		<option select value="-1"> </option>
+      	<option select value="1">IPv4</option>
+      	</select></font>&nbsp;&nbsp
+		</td>
+	</tr>
+	</table>
+</span>
+
+<span id = "ipVersion_div" class = "off" >  
+	<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>IpVersion:</b></font></td>
+		<td>
+      	<select name="version" style="width:90px" ONCLICK="updateQosState(this)">
+		<option select value="-1"> </option>
+      	<option select value="1">IPv4</option>
+      	<option select value="2">IPv6 </option>
+      	<option select value="4">Both</option>
+      	</select></font>&nbsp;&nbsp
+		</td>
+	</tr>
+	</table>
+</span>
+<span id = "type_div" class = "off" >  
+	<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>QoS Type:</b></font></td>
+		<td>
+      <input type="radio" name="addressType" value="0" checked ONCLICK=ipAddrClicked()>IP&nbsp;&nbsp;
+      <input type="radio" name="addressType" value="1" ONCLICK=macAddrClicked()>MAC&nbsp;&nbsp;
+      <input type="radio" name="addressType" value="2" ONCLICK=phyportClicked()>PHYPORT&nbsp;&nbsp;
+      <input type="radio" name="addressType" value="3" ONCLICK=l3PreceClicked()>L3&nbsp;&nbsp;
+      <input type="radio" name="addressType" value="4" ONCLICK=onePClicked()>1P&nbsp;&nbsp;
+		</td>
+	</tr>
+	</table>
+</span>
+
+<table border=0 width=600> 	
+	<tr>
+		<td width="45%"><font size=2><b>Protocol:</b></font></td>
+		<td>
+			<select name="protocol" style="width:90px">
+    		<option select value="-1">  </option>
+    		<option value="6">TCP</option>
+    		<option value="17">UDP</option>
+    		</select></font>&nbsp;&nbsp
+    	</td>
+	</tr>
+
+	<tr>
+		<td width="45%"><font size=2><b>Source IP Address:</b></font></td>
+		<td><input type="text" name="sip" size="40" maxlength="40" value=""></td>
+  	</tr>
+
+	<tr>
+		<td width="45%"><font size=2><b>Source Port:</b></font></td>
+		<td>
+			<input type="text" name="sPortStart" size="12" maxlength="15" value="">
+      <font face="Arial" size="5">-</font>
+      <input type="text" name="sPortEnd" size="12" maxlength="15" value="">
+    </td>
+  </tr>
+	<tr>
+		<td width="45%"><font size=2><b>Destination IP Address:</b></font></td>
+		<td><input type="text" name="dip" size="40" maxlength="40" value=""></td>
+  </tr>
+  <tr>
+		<td width="45%"><font size=2><b>Destination Port:</b></font></td>
+		<td>
+			<input type="text" name="dPortStart" size="12" maxlength="15" value="">
+      <font face="Arial" size="5">-</font>
+      <input type="text" name="dPortEnd" size="12" maxlength="15" value="">
+    </td>
+  </tr>
+
+  <tr>
+		<td width="45%"><font size=2><b>Source MAC Address:</b></font></td>
+		<td><input type="text" name="smac" size="12" maxlength="12"></td>
+	</tr>
+
+
+    <tr>
+		<td width="45%"><font size=2><b>Destination MAC Address:</b></font></td>
+		<td><input type="text" name="dmac" size="12" maxlength="12"></td>
+	</tr>
+	<tr>
+		<td width="45%"><font size=2><b>Phyport:</b></font></td>
+		<td><input type="text" name="phyport" size="12" maxlength="2">&nbsp;(0-4)</td>
+	</tr>
+	<tr>
+		<td width="45%"><font size=2><b>802.1p:</b></font></td>
+		<td><input type="text" name="vlan_pri" size="12" maxlength="2">&nbsp;(0-7)</td>
+	</tr>
+<% getInfo("ipv6_qos_start");%>	
+	<tr>
+		<td width="45%"><font size=2><b>Flow Label:</b></font></td>
+		<td><input type="text" name="flow_label" size="12" maxlength="20">&nbsp;</td>
+	</tr> 
+<% getInfo("ipv6_qos_end");%>
+</table>
+ 
+<span id = "l3v4_div" class = "off" >  
+	<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>L3:</b></font></td>
+		<td>
+      	<select name="l3v4Prece" style="width:90px" onChange="resetDscp(this)">
+		<option select value="0"> </option>
+      	<option select value="1">DSCP</option>
+      	<option select value="2">ToS</option>
+      	</select></font>&nbsp;&nbsp
+		</td>
+	</tr>
+	</table>
+</span>
+
+<span id = "l3v6_div" class = "off" >  
+	<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>L3:</b></font></td>
+		<td>
+      	<select name="l3v6Prece" style="width:90px" onChange="resetDscp(this)">
+		<option select value="0"> </option>
+      	<option select value="1">DSCP</option>
+      	<option select value="2">Traffic Class</option>
+      	</select></font>&nbsp;&nbsp
+		</td>
+	</tr>
+	</table>
+</span>
+
+<table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>L3 Precedence:</b></font></td>
+		<td><input type="text" name="dscp" size="12" maxlength="3">&nbsp;</td>
+	</tr>
+<!--
+	<tr>
+		<td width="45%"><font size=2><b>vlan ID:</b></font></td>
+		<td><input type="text" name="vlan_id" size="12" maxlength="4">&nbsp;(1-4095)</td>
+	</tr> 
+-->
+	<tr>
+      <td width="45%"><font size=2><b>QoS Remark Setting:</b></font></font></td>
+      <td>&nbsp;</td>
+  	</tr>
+	<tr>
+		<td width="45%"><font size=2><b>Remark Dscp:</b></font></td>
+		<td><input type="text" name="remark_dscp" size="12" maxlength="2">&nbsp;(0-63)</td>
+	</tr>
+
+	<tr>
+		<td width="45%"><font size=2><b>Remark 802.1p:</b></font></td>
+		<td><input type="text" name="remark_vlan_pri" size="12" maxlength="2">&nbsp;(0-7)</td>
+	</tr>
+
+</table>
+
+<table border=0 width=220>
+	<tr>
+<% getInfo("apply_prompt_comment_start");%>	
+		<td><input type="submit" value="Apply Changes" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="reset" value="Reset" name="reset"></td>
+<% getInfo("apply_prompt_comment_end");%>
+<% getInfo("apply_direct_comment_start");%>
+<td><input type="submit" value="Save" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="submit" value="Save & Apply" name="save_apply" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="reset" value="Reset" name="reset"></td>
+<td><input type="hidden" value="1" name="addQosFlag"></td>
+<% getInfo("apply_direct_comment_end");%>
+  </tr>
+	<script> updateQosState(); </script>
+</form>
+</table>
+
+
+<br>
+<form action=/boafrm/formQosRule method=POST name="formQosDel">
+<table border=0 width=730>
+  <tr><font size=2><b>Current QoS Classification Rules Table:</b></font></tr>
+      <% qosRuleList(); %>
+</table>
+
+ <br><input type="submit" value="Delete Selected" name="deleteSel" onClick="return deleteClick()">&nbsp;&nbsp;
+     <input type="submit" value="Delete All" name="deleteAll" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+     <input type="reset" value="Reset" name="reset">
+
+ <script>
+	if ( <% getIndex("ruleNum"); %> == 0 )
+		disableQosDelButton();
+ </script>
+     <input type="hidden" value="/qos_classification.htm" name="submit-url">
+</form>
+
+
+</blockquote>
+</body>
+</html>
+

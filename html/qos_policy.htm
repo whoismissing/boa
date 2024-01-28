@@ -1,0 +1,583 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<% language=javascript %>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var qos_enable=<%getIndex("qosEnable")%>;
+var hw_qos=<%getIndex("hwQosSupport")%>;
+var def_queue = <%getIndex("defQueue")%>;
+/*
+var wan1_br = <% getIndex("wanBrSupport", "1") %>;
+var wan2_br = <% getIndex("wanBrSupport", "2") %>;
+var wan3_br = <% getIndex("wanBrSupport", "3") %>;
+var wan4_br = <% getIndex("wanBrSupport", "4") %>;
+*/
+
+var wan_up_speed = <% getIndex("wanUpRate", "1") %>;
+var wan_down_speed = <% getIndex("wanDownRate", "1") %>;
+var wanListNum = <%	getMultiWanIndex("WANIfaceNum")%>;
+
+var mainWanIndex = <%	getIndex("mainWanIndex")%>;
+
+/*	wan_qos_policy[i] = {"WAN(i+1)", "v4QoSEnable", "brFlag"}	*/
+var wan_qos_policy = new Array();
+
+<%getQoSWanPolicy();%>
+
+function show_policy_wan_list()
+{
+	var qos_flag = 0;
+	
+	for(var i = 0;i < wanListNum; i++)
+	{
+		if(wan_qos_policy[i][1] == '1')
+		{
+			qos_flag = 1;
+			document.write("<option value=\"" + (i + 1) + "\">" + wan_qos_policy[i][0] + "</option>");
+		}
+	}
+
+	if(qos_flag == 0)
+	{
+		document.write("<option value=\"0\">No Available</option>");
+	}
+}
+
+function addRuleClick()
+{
+	if(hw_qos){
+		if(document.formQosAdd.direction.value == 1 &&
+		document.formQosAdd.policyType[0].checked &&  
+		!document.formQosAdd.priority.value && !document.formQosAdd.priority_nat.value &&
+		!document.formQosAdd.priority_br.value &&!document.formQosAdd.weight.value )
+			return true;
+	}
+	else{
+		if(document.formQosAdd.direction.value == 1 &&
+		document.formQosAdd.policyType[0].checked &&  
+		!document.formQosAdd.priority.value && !document.formQosAdd.weight.value )
+			return true;
+	}
+		
+		
+	if(document.formQosAdd.policyType[0].checked){	// SP
+
+		if(hw_qos){
+			if(document.formQosAdd.priority.value &&
+			!checkFieldDigitRange(document.formQosAdd.priority,16,23,"invalid number!")){
+				document.formQosAdd.priority.value = "";
+  				return false;
+			}
+
+			if(document.formQosAdd.priority_nat.value &&
+			!checkFieldDigitRange(document.formQosAdd.priority_nat,8,15,"invalid number!")){
+				document.formQosAdd.priority_nat.value = "";
+				return false;
+			}
+
+			if(document.formQosAdd.priority_br.value &&
+			!checkFieldDigitRange(document.formQosAdd.priority_br,0,7,"invalid number!")){
+				document.formQosAdd.priority_br.value = "";
+				return false;
+			}
+			
+		}
+		else{
+			if(document.formQosAdd.priority.value &&
+			!checkFieldDigitRange(document.formQosAdd.priority,0,7,"invalid number!"))
+  				return false;
+		}
+	}
+	else if(document.formQosAdd.policyType[1].checked){		// WFQ
+		if (!isIntVal(document.formQosAdd.weight.value)){
+			alert("weight must be integer!");
+			return false;
+		}
+
+		if(document.formQosAdd.weight.value &&
+			!checkFieldDigitRange(document.formQosAdd.weight,1,20,"invalid number!"))
+  				return false;
+	}
+	else{	// Shaping
+		if (!document.formQosAdd.rate.value){
+			alert("Shaping Bandwidth can't be empty in Shaping policy! ");
+			return false;
+		}
+
+		if(!validateKey( document.formQosAdd.rate.value )){
+			alert("Invalid input! Shaping Bandwidth should be the decimal number (0-9).");
+			document.formQosAdd.rate.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.direction.value == 1){	// uplink
+			if(document.formQosAdd.rate.value > wan_up_speed){
+				alert("Invalid input! Shaping Bandwidth cannot exceed WAN uplink speed.");
+				return false;
+			}
+		}
+		else if(document.formQosAdd.direction.value == 2){
+			if(document.formQosAdd.rate.value > wan_down_speed){
+				alert("Invalid input! Shaping Bandwidth cannot exceed WAN downlink speed.");
+				return false;
+			}
+		}
+	}
+
+	if(document.formQosAdd.interface.value == 0){
+		alert("wan interface cannot be empty!");
+		return false;
+	}
+
+	if((document.formQosAdd.direction.value == 1) && (document.formQosAdd.upQueue.value == 0)){
+		alert("uplink queue cannot be empty!");
+		return false;
+	}
+
+	if((document.formQosAdd.direction.value == 2) && (document.formQosAdd.downQueue.value == 0)){
+		alert("downlink queue cannot be empty!");
+		return false;
+	}
+
+	return true;
+}
+
+function deleteClick()
+{
+  if ( !confirm('Do you really want to delete the selected entry?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm('Do you really want to delete the all entries?') ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function disableQosDelButton()
+{
+	disableButton(document.formQosDel.deleteSel);
+	disableButton(document.formQosDel.deleteAll);
+}
+
+function priorityClicked()
+{
+	disableTextField(document.formQosAdd.weight);
+	disableTextField(document.formQosAdd.mode);
+	disableTextField(document.formQosAdd.rate);
+	enableTextField(document.formQosAdd.priority);
+
+	if(hw_qos){
+		enableTextField(document.formQosAdd.priority_nat);
+		enableTextField(document.formQosAdd.priority_br);
+	}
+}
+function wrrClicked()
+{
+	disableTextField(document.formQosAdd.priority);
+	disableTextField(document.formQosAdd.mode);
+	disableTextField(document.formQosAdd.rate);
+	enableTextField(document.formQosAdd.weight);
+	
+	if(hw_qos){
+		disableTextField(document.formQosAdd.priority_nat);
+		disableTextField(document.formQosAdd.priority_br);
+	}
+}
+
+function shapingClicked()
+{
+	disableTextField(document.formQosAdd.priority);
+	disableTextField(document.formQosAdd.weight);
+	enableTextField(document.formQosAdd.mode);
+	enableTextField(document.formQosAdd.rate);
+	
+	if(hw_qos){
+		disableTextField(document.formQosAdd.priority_nat);
+		disableTextField(document.formQosAdd.priority_br);
+	}
+}
+
+function updateQosState()
+{
+	if(qos_enable)
+	{
+		enableTextField(document.formQosAdd.direction);
+		enableTextField(document.formQosAdd.upQueue);
+		enableTextField(document.formQosAdd.downQueue);
+		enableTextField(document.formQosAdd.interface);
+		enableTextField(document.formQosAdd.defQueue);
+		enableTextField(document.formQosAdd.policyType[0]);
+		enableTextField(document.formQosAdd.policyType[1]);
+		enableTextField(document.formQosAdd.policyType[2]);
+		
+		if(document.formQosAdd.policyType[0].checked==true)
+			priorityClicked();
+		else if(document.formQosAdd.policyType[1].checked==true)
+			wrrClicked();
+		else
+			shapingClicked();
+	}
+	else
+	{
+		disableTextField(document.formQosAdd.direction);
+		disableTextField(document.formQosAdd.upQueue);
+		disableTextField(document.formQosAdd.downQueue);
+		disableTextField(document.formQosAdd.interface);
+		disableTextField(document.formQosAdd.policyType[0]);
+		disableTextField(document.formQosAdd.policyType[1]);
+		disableTextField(document.formQosAdd.policyType[2]);
+		disableTextField(document.formQosAdd.priority);
+		disableTextField(document.formQosAdd.defQueue);
+		if(hw_qos){
+			disableTextField(document.formQosAdd.priority_nat);
+			disableTextField(document.formQosAdd.priority_br);
+		}
+		disableTextField(document.formQosAdd.weight);
+		disableTextField(document.formQosAdd.mode);
+		disableTextField(document.formQosAdd.rate);
+	}	
+
+	if(def_queue == 0xffffffff)
+		document.formQosAdd.defQueue.checked = false;
+	else
+		document.formQosAdd.defQueue.checked = true;
+	
+	if(document.formQosAdd.direction.value == 1)
+		queueShowDiv(1, 0);
+		
+	else if(document.formQosAdd.direction.value == 2)
+		queueShowDiv(0, 1);
+
+	if(hw_qos){
+	/*
+		if((document.formQosAdd.interface.value == 1 && wan1_br) ||(document.formQosAdd.interface.value == 2 && wan2_br) 
+		|| (document.formQosAdd.interface.value == 3 && wan3_br) || (document.formQosAdd.interface.value == 4 && wan4_br))
+	*/
+		if(wan_qos_policy[document.formQosAdd.interface.value-1][2] != '0')
+		{
+			prioShowDiv(3);			/* bridge */
+		}
+		else if(document.formQosAdd.interface.value == mainWanIndex){
+			prioShowDiv(2);			/* hw nat */
+		}
+		else{
+			prioShowDiv(1);
+		}
+	}
+}
+
+function updateDefQueueState()
+{
+	if(!document.formQosAdd.defQueue.checked)
+		alert("Unless necessary, don't disable default queue!!");
+}
+
+function queueShowDiv(up_bool, down_bool)
+{
+	if(up_bool){
+		show_div(1,"up_div"); 
+		show_div(0,"down_div");
+	}
+	else if(down_bool){
+		show_div(0,"up_div"); 
+		show_div(1,"down_div"); 
+	}
+	else
+		show_div(1,"no_avail"); 
+}
+
+function prioShowDiv(prio_index)
+{
+	switch(prio_index)
+	{
+		case 1:
+			show_div(1,"prio_div1"); 
+			show_div(0,"prio_div2"); 
+			show_div(0,"prio_div3"); 
+			break;
+		case 2:
+			show_div(0,"prio_div1"); 
+			show_div(1,"prio_div2"); 
+			show_div(0,"prio_div3"); 	
+			break;
+		case 3:
+			show_div(0,"prio_div1"); 
+			show_div(0,"prio_div2"); 
+			show_div(1,"prio_div3"); 	
+			break;	
+		default:
+			break;
+	}
+}
+
+function Load_Setting()
+{
+	updateQosState();
+}
+</script>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2>QoS Policy</h2>
+
+<table border=0 width="550" cellspacing=4 cellpadding=0>
+<tr><td><font size=2>
+ This page is used to configure qos policy and queue setting. If select PRIO, the lower value represents
+ greater priority. If select WRR, the larger value represents  more bandwidth.
+</font></td></tr>
+
+
+<table border=0 width=600>
+  <tr><td><hr size=1 noshade align=top></td></tr>
+
+<form action=/boafrm/formQosPolicy method=POST name="formQosAdd">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_policy.htm" name="submit-url">
+</table>
+
+<table border=0 width=600>
+	<tr>
+      <td width="45%"><font size=2><b>QoS Policy Setting:</b></font></font></td>
+      <td>&nbsp;</td>
+  	</tr>
+  	 <tr>
+       <td width="30%" ><font size=2>
+        <b>Direction:</b></font></td>
+       <td width="70%"><font size=2><select style="width=120px"  size="1" name="direction" onChange="updateQosState(this)">
+		<option value="1">uplink</option>
+		<option value="2">downlink</option>
+	</select></td>
+	</tr>
+	<tr>
+       <td width="30%" ><font size=2>
+        <b>Interface:</b></font></td>
+       <td width="70%"><font size=2><select style="width=120px"  size="1" name="interface" onChange="updateQosState(this)">
+<script type="text/javascript">
+	/*
+		if(<% getIndex("wanQosEnable", "first"); %>)
+			document.write("<option value=\"1\">WAN 1</option>");
+		if(<% getIndex("wanQosEnable", "second"); %>)
+			document.write("<option value=\"2\">WAN 2</option>");
+		if(<% getIndex("wanQosEnable", "third"); %>)
+			document.write("<option value=\"3\">WAN 3</option>");
+		if(<% getIndex("wanQosEnable", "forth"); %>)
+			document.write("<option value=\"4\">WAN 4</option>");
+		if(!<% getIndex("wanQosEnable", "first"); %> && !<% getIndex("wanQosEnable", "second"); %> && 
+			!<% getIndex("wanQosEnable", "third"); %> && !<% getIndex("wanQosEnable", "forth"); %>)
+			document.write("<option value=\"0\">No Available</option>");
+	*/
+	
+	show_policy_wan_list();
+</script>
+	</select></td>
+    </tr>
+</table>
+
+<span id = "up_div" class = "off" >  
+<table border=0 width=600>
+ 	<tr>
+       <td width="45%" ><font size=2>
+        <b>Transmission:</b></font></td>
+       <td width="70%"><font size=2><select style="width=120px" size="1" name="upQueue" >
+<script type="text/javascript">
+		if(<% getIndex("upQueIdle", "first"); %>)
+			document.write("<option value=\"1\">queue 1</option>");
+		if(<% getIndex("upQueIdle", "second"); %>)
+			document.write("<option value=\"2\">queue 2</option>");
+		if(<% getIndex("upQueIdle", "third"); %>)
+			document.write("<option value=\"3\">queue 3</option>");
+		if(<% getIndex("upQueIdle", "forth"); %>)
+			document.write("<option value=\"4\">queue 4</option>");
+		if(<% getIndex("upQueIdle", "fifth"); %>)
+			document.write("<option value=\"5\">queue 5</option>");
+		if(<% getIndex("upQueIdle", "sixth"); %>)
+			document.write("<option value=\"6\">queue 6</option>");
+		if(<% getIndex("upQueIdle", "seventh"); %>)
+			document.write("<option value=\"7\">queue 7</option>");
+		if(<% getIndex("upQueIdle", "eighth"); %>)
+			document.write("<option value=\"8\">queue 8</option>");
+
+		if(!(<% getIndex("upQueIdle", "first"); %>) && !(<% getIndex("upQueIdle", "second"); %>) &&
+		!(<% getIndex("upQueIdle", "third"); %>) && !(<% getIndex("upQueIdle", "forth"); %>) &&
+		!(<% getIndex("upQueIdle", "fifth"); %>) && !(<% getIndex("upQueIdle", "sixth"); %>) &&
+		!(<% getIndex("upQueIdle", "seventh"); %>) && !(<% getIndex("upQueIdle", "eighth"); %>))
+			document.write("<option value=\"0\">No Available</option>");
+</script>
+	</select></td>
+    </tr>
+</table>
+</span>
+
+<span id = "down_div" class = "off" >  
+<table border=0 width=600>
+ 	<tr>
+       <td width="45%" ><font size=2>
+        <b>Transmission:</b></font></td>
+       <td width="70%"><font size=2><select style="width=120px" size="1" name="downQueue" >
+<script type="text/javascript">
+		if(<% getIndex("downQueIdle", "first"); %>)
+			document.write("<option value=\"11\">queue 11</option>");
+		if(<% getIndex("downQueIdle", "second"); %>)
+			document.write("<option value=\"12\">queue 12</option>");
+		if(<% getIndex("downQueIdle", "third"); %>)
+			document.write("<option value=\"13\">queue 13</option>");
+		if(<% getIndex("downQueIdle", "forth"); %>)
+			document.write("<option value=\"14\">queue 14</option>");
+		if(<% getIndex("downQueIdle", "fifth"); %>)
+			document.write("<option value=\"15\">queue 15</option>");
+		if(<% getIndex("downQueIdle", "sixth"); %>)
+			document.write("<option value=\"16\">queue 16</option>");
+		if(<% getIndex("downQueIdle", "seventh"); %>)
+			document.write("<option value=\"17\">queue 17</option>");
+		if(<% getIndex("downQueIdle", "eighth"); %>)
+			document.write("<option value=\"18\">queue 18</option>");
+
+		if(!(<% getIndex("downQueIdle", "first"); %>) && !(<% getIndex("downQueIdle", "second"); %>) &&
+		!(<% getIndex("downQueIdle", "third"); %>) && !(<% getIndex("downQueIdle", "forth"); %>) &&
+		!(<% getIndex("downQueIdle", "fifth"); %>) && !(<% getIndex("downQueIdle", "sixth"); %>) &&
+		!(<% getIndex("downQueIdle", "seventh"); %>) && !(<% getIndex("downQueIdle", "eighth"); %>))
+			document.write("<option value=\"0\">No Available</option>");
+</script>
+	</select></td>
+    </tr>
+</table>
+</span>
+
+ <span id = "no_avail" class = "off" >  
+  <table>
+    <tr>
+       <td width=266 ><font size=2>
+        <b>Transmission:</b></font></td>
+       <td width=331><font size=2><select style="width=120px" size="1" name="noAvailQue" >
+       		<option value="-1">No Available Queue</option>
+	</select></td>
+    </tr>
+ </table>
+</span>
+
+  <table border=0 width=600>
+    <tr>
+		<td width="45%"><font size=2><b>Policy:</b></font></td>
+		<td>
+	  		<input type="radio" name="policyType" value="0" checked ONCLICK=priorityClicked()>PRIO&nbsp;&nbsp;
+	  		<input type="radio" name="policyType" value="1" ONCLICK=wrrClicked()>WRR&nbsp;&nbsp;
+			<input type="radio" name="policyType" value="2" ONCLICK=shapingClicked()>SHAPING&nbsp;&nbsp;
+		</td>
+	</tr>
+<%getIndex("swQosSupport_start")%>
+	<tr>
+		<td width="45%"><font size=2><b>Priority:</b></font></td>
+		<td><input type="text" name="priority" size="10" maxlength="2">&nbsp;(0-7)</td>
+	</tr>
+<%getIndex("swQosSupport_end")%>
+ </table>
+
+<%getIndex("hwQosSupport_start")%>
+<span id = "prio_div1" class = "off" >  
+	<table border=0 width=600>
+	<tr>
+		<td width="45%"><font size=2><b>Priority:</b></font></td>
+		<td><input type="text" name="priority" size="10" maxlength="2">&nbsp;(16-23)</td>
+	</tr>
+	</table>
+</span>
+<span id = "prio_div2" class = "off" >  
+	<table border=0 width=600>
+	<tr>
+		<td width="45%"><font size=2><b>Priority:</b></font></td>
+		<td><input type="text" name="priority_nat" size="10" maxlength="2">&nbsp;(8-15)</td>
+	</tr>
+	</table>
+</span>
+<span id = "prio_div3" class = "off" >  
+	<table border=0 width=600>
+	<tr>
+		<td width="45%"><font size=2><b>Priority:</b></font></td>
+		<td><input type="text" name="priority_br" size="10" maxlength="2">&nbsp;(0-7)</td>
+	</tr>
+	</table>
+</span>
+<%getIndex("hwQosSupport_end")%>
+
+<table border=0 width=600>
+	<tr>
+		<td width="45%"><font size=2><b>Weight:</b></font></td>
+		<td><input type="text" name="weight" size="10">&nbsp; (1-20)</td>
+	</tr>	
+</table>
+
+<table border=0 width=600>
+	<tr>
+		<td width="45%"><font size=2><b>Shaping Mode:</b></font></td>
+		<td><select size="1" name="mode"><option selected value="1">Guaranteed minimum bandwidth</option>
+      		<option value="2">Restricted maximum bandwidth</option></select>
+    	</td>
+	</tr>
+	<tr>
+	    <td width="45%"><font size=2><b>Shaping Bandwidth (Kbps):</b></font></td>
+    	<td><input type="text" name="rate" size="8"><br><br></td>
+    </tr>
+    <tr>
+	<td width="45%" ><font size=2><b>Default Queue:</b></font></td>
+	<td><input type="checkbox" name="defQueue" value="ON" ONCLICK=updateDefQueueState()></td>
+	</tr>
+</table>
+
+<table border=0 width=220>
+	<tr>
+<% getInfo("apply_prompt_comment_start");%>	
+		<td><input type="submit" value="Apply Changes" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="reset" value="Reset" name="reset"></td>
+<% getInfo("apply_prompt_comment_end");%>
+<% getInfo("apply_direct_comment_start");%>
+<td><input type="submit" value="Save" name="addQos" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="submit" value="Save & Apply" name="save_apply" onClick="return addRuleClick()">&nbsp;&nbsp;</td>
+<td><input type="reset" value="Reset" name="reset"></td>
+<td><input type="hidden" value="1" name="addQosFlag"></td>
+<% getInfo("apply_direct_comment_end");%>
+  </tr>
+	<script> updateQosState(); </script>
+</form>
+</table>
+
+<br>
+<form action=/boafrm/formQosPolicy method=POST name="formQosDel">
+<table border=0 width=730>
+  <tr><font size=2><b>Current QoS Policy Table:</b></font></tr>
+    <% qosPolicyList(); %>
+</table>
+
+ <br><input type="submit" value="Delete Selected" name="deleteSel" onClick="return deleteClick()">&nbsp;&nbsp;
+     <input type="submit" value="Delete All" name="deleteAll" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+     <input type="reset" value="Reset" name="reset">
+
+ <script>
+	if ( <% getIndex("queueNum"); %> == 0 )
+		disableQosDelButton();
+ </script>
+     <input type="hidden" value="/qos_policy.htm" name="submit-url">
+</form>
+
+</blockquote>
+</body>
+</html>
+

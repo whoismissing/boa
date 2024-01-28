@@ -1,0 +1,536 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var class_nubmer = <%getIndex("class_number");%>;
+var type_number = <%getIndex("type_number");%>;
+var queue_numer = <%getIndex("queue_number");%>;
+var wanListNum = <%	getMultiWanIndex("WANIfaceNum")%>;
+
+/*	qos_class[i] = {"class+i",  "classQueue", "dscp remark", "dot1p remark"}
+	only show class belong to current wan_port*/
+var qos_class = new Array();
+<%getQosClass();%>
+
+/*	qos_type[i] = {"i", "type name", "min", "max", "protocol"}	
+	only show type belong to current wan_port*/
+var qos_type = new Array();
+<%getQosType();%>
+
+/*	qos_queue[i] = {"queue+i", "enable", "priority", "weight"}	
+	only show queue belong to current wan_port*/
+var qos_queue = new Array();
+<%getQosQueue();%>
+
+var current_class_id = <%getIndex("current_classid");%>;
+var current_type_id = <%getIndex("current_typeid");%>;
+
+var class_array_current_index = 0;
+var type_array_current_index = 0;
+
+
+// 1: add type  2: edit class  3: edit type
+var operation = <%getIndex("uplink_qos_operation");%>;
+
+/*wan_qos_num[i] = {"WAN(i+1)", "Enable"}*/
+var wan_qos_policy = new Array();
+<%getQoSWan();%>
+
+function show_wan_list()
+{
+	var wan_flag = 0;
+	
+	for(var i = 0;i < wanListNum; i++)
+	{
+		if(wan_qos_policy[i][1] == '1')
+		{
+			wan_flag = 1;
+			document.write("<option value=\"" + (i + 1) + "\">" + wan_qos_policy[i][0] + "</option>");
+		}
+	}
+
+	if(wan_flag == 0)
+	{
+		document.write("<option value=\"0\">"+无可用接口+"</option>");
+	}
+}
+
+function addRuleClick()
+{
+	if(operation == 2){
+		if(document.formQosAdd.dscpRemark.value != -1){
+			if(checkFieldDigitRange(document.formQosAdd.dscpRemark, 0, 63, "无效的dscp重标记!") == false){
+				document.formQosAdd.dscpRemark.focus();
+				return false;
+			}
+		}
+
+		if(document.formQosAdd.dot1pRemark.value != -1){
+			if(!checkFieldDigitRange(document.formQosAdd.dot1pRemark, 0, 7, "无效的802.1p重标记!")){
+				document.formQosAdd.dot1pRemark.focus();
+				return false;
+			}
+		}
+	}
+
+	if(operation == 3){
+		if(!checkSetBothOrNone(document.formQosAdd.minimum, document.formQosAdd.maximum)){
+			document.formQosAdd.minimum.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.type.value && document.formQosAdd.type.value != "SMAC" && document.formQosAdd.type.value != "DMAC" &&
+		document.formQosAdd.type.value != "SIP" && document.formQosAdd.type.value != "DIP" &&
+		document.formQosAdd.type.value != "SPORT" && document.formQosAdd.type.value != "DPORT" &&
+		document.formQosAdd.type.value != "DSCP" && document.formQosAdd.type.value != "TOS" && 
+		document.formQosAdd.type.value != "8021P" && document.formQosAdd.type.value != "WANInterface" && 
+		document.formQosAdd.type.value != "LANInterface"){
+			alert("无效的分类类型！");
+			document.formQosAdd.type.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.type.value && !document.formQosAdd.minimum.value && !document.formQosAdd.maximum.value){
+			alert("请输入最大值和最小值！");
+			document.formQosAdd.minimum.focus();
+			return false;
+		}
+
+		if(document.formQosAdd.minimum.value && document.formQosAdd.maximum.value){
+			if(document.formQosAdd.type.value){
+				if(document.formQosAdd.type.value == "SMAC" || document.formQosAdd.type.value == "DMAC"){
+					if(document.formQosAdd.minimum.value.length < 17 || document.formQosAdd.maximum.value.length < 17){
+						alert("无效的MAC地址。应为XX:XX:XX:XX:XX:XX");
+						document.formQosAdd.type.focus();
+						return false;
+					}
+
+					if(!checkMacAddrString(document.formQosAdd.minimum) || !checkMacAddrString(document.formQosAdd.maximum)){
+						document.formQosAdd.type.focus();
+						return false;
+					}
+				}
+				else if(document.formQosAdd.type.value == "SIP" || document.formQosAdd.type.value == "DIP"){
+					if(checkIpAddr(document.formQosAdd.minimum, "最小值不是一个有效的IPv4地址") == false ||
+					checkIpAddr(document.formQosAdd.maximum, "最大值不是一个有效的IPv4地址") == false){
+						document.formQosAdd.type.focus();
+						return false;
+					}
+
+					if(document.formQosAdd.type.value == "SIP"){
+						var LAN_IP = ipv4_to_unsigned_integer("<% getInfo("ip"); %>");
+						var LAN_MASK = ipv4_to_unsigned_integer("<% getInfo("mask"); %>");	
+						
+						var tarIp = ipv4_to_unsigned_integer(document.formQosAdd.minimum.value);
+						if ((tarIp & LAN_MASK) != (LAN_IP & LAN_MASK)){
+							alert("IPv4地址最小值应当和LAN侧连接同网段.");
+							document.formQosAdd.minimum.focus();
+							return false;
+						}
+
+						tarIp = ipv4_to_unsigned_integer(document.formQosAdd.maximum.value);
+						if ((tarIp & LAN_MASK) != (LAN_IP & LAN_MASK)){
+							alert("IPv4地址最大值应当和LAN侧连接同网段.");
+							document.formQosAdd.maximum.focus();
+							return false;
+						}
+					}
+				}
+				else if(document.formQosAdd.type.value == "SPORT" || document.formQosAdd.type.value == "DPORT"){
+					if(parseInt(document.formQosAdd.maximum.value, 10) < parseInt(document.formQosAdd.minimum.value, 10)){
+						alert("端口范围无效。最大值应不小于最小值.");
+						document.formQosAdd.minimum.focus();
+						return false;
+					}
+
+					if(!checkFieldDigitRange(document.formQosAdd.minimum, 1, 65535,"端口最小值无效!") ||
+					!checkFieldDigitRange(document.formQosAdd.maximum, 1, 65535,"端口最大值无效!")){
+						return false;
+					}
+
+					if(document.formQosAdd.protocol.value != "TCP" && document.formQosAdd.protocol.value != "UDP"){
+						alert("配置端口时必须指定TCP或UDP协议.");
+						document.formQosAdd.protocol.focus();
+						return false;
+					}
+				}
+				else if(document.formQosAdd.type.value == "DSCP"){
+					if(parseInt(document.formQosAdd.maximum.value, 10) < parseInt(document.formQosAdd.minimum.value, 10)){
+						alert("DSCP范围无效。最大值应不小于最小值.");
+						document.formQosAdd.minimum.focus();
+						return false;
+					}
+
+					if(!checkFieldDigitRange(document.formQosAdd.minimum, 0, 63,"DSCP最小值无效!") ||
+					!checkFieldDigitRange(document.formQosAdd.maximum, 0, 63,"DSCP最大值无效!")){
+						return false;
+					}
+				}
+				else if(document.formQosAdd.type.value == "TOS"){
+					if(parseInt(document.formQosAdd.maximum.value, 10) < parseInt(document.formQosAdd.minimum.value, 10)){
+						alert("TOS范围无效。最大值应不小于最小值.");
+						document.formQosAdd.minimum.focus();
+						return false;
+					}
+
+					if(!checkFieldDigitRange(document.formQosAdd.minimum, 0, 255,"TOS最小值无效!") ||
+					!checkFieldDigitRange(document.formQosAdd.maximum, 0, 255,"TOS最大值无效!")){
+						return false;
+					}
+				}
+				else if(document.formQosAdd.type.value == "8021P"){
+					if(parseInt(document.formQosAdd.maximum.value, 10) < parseInt(document.formQosAdd.minimum.value, 10)){
+						alert("802.1P范围无效。最大值应不小于最小值.");
+						document.formQosAdd.minimum.focus();
+						return false;
+					}
+
+					if(!checkFieldDigitRange(document.formQosAdd.minimum, 0, 7,"802.1P最小值无效!") ||
+					!checkFieldDigitRange(document.formQosAdd.maximum, 0, 7,"802.1P最大值无效!")){
+						return false;
+					}
+				}
+				else if(document.formQosAdd.type.value == "LANInterface"){
+				}
+				else{	// wan iface
+					
+				}
+			}
+			else{
+				alert("分类类型不能为空");
+				document.formQosAdd.type.focus();
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+function check_array_index()
+{
+	for(var i = 0; i < class_nubmer; i++){
+		if(qos_class[i][0] == current_class_id){
+			class_array_current_index = i;
+			break;
+		}
+	}
+	
+	for(var i = 0; i < type_number; i++){
+		if(qos_type[i] && qos_type[i][0] != '0'){
+			if(qos_type[i][0] == current_type_id){
+				type_array_current_index = i;
+				break;
+			}
+		}
+	}
+}
+
+function classid_submit(id)
+{
+	document.forms.formQosAdd.current_classid.value=id;
+}
+
+function typeid_submit(id)
+{
+	document.forms.formQosAdd.current_typeid.value=id;
+}
+
+function add_type(id)
+{
+	document.forms.formQosAdd.qos_operation.value = 1;
+	classid_submit(id);
+}
+
+function edit_class(id)
+{
+	document.forms.formQosAdd.qos_operation.value = 2;
+	classid_submit(id);
+}
+
+function edit_type(id)
+{
+	document.forms.formQosAdd.qos_operation.value = 3;
+	typeid_submit(id);
+}
+
+function show_wanPort()
+{
+	document.write("<td width='%30'><font size='2'><b>wan: "+wan+ "</b></font></td>");
+}
+
+function show_class_list()
+{
+	document.write("<input type='hidden' name='current_classid'>");
+	document.write("<input type='hidden' name='qos_operation'>");
+	
+	for(var i = 0; i < class_nubmer; i++){
+		document.write("<tr><td align=center width=''><font size='2'><b>"+ qos_class[i][0]+ "</b></font></td>");
+		document.write("<td align=center width=''><font size='2'><b>"+ qos_class[i][1]+ "</b></font></td>");
+		document.write("<td align=center width=''><font size='2'><b>"+ qos_class[i][2]+ "</b></font></td>");
+		document.write("<td align=center width=''><font size='2'><b>"+ qos_class[i][3]+ "</b></font></td>");
+		document.write("<td align=center width=''><font size='2'><b>"+ qos_class[i][4]+ "</b></font></td>");
+		document.write("<td align=center width=''><button name='AddType' value='AddType' onclick='add_type("+qos_class[i][0]+");'>添加</button></td>");
+		document.write("<td align=center width=''><button name='EditType' value='EditType' onclick='edit_class("+qos_class[i][0]+");'>编辑</button></td>");
+		document.write("<td align=center width=''><button name='DelCls' value='DelCls' onclick='classid_submit("+qos_class[i][0]+");'>删除</button></td></tr>");
+	}
+}
+
+function show_class_type_list()
+{
+	document.write("<input type='hidden' name='current_typeid'>");
+
+	for(var i = 0; i < type_number; i++){
+		if(qos_type[i] && qos_type[i][0] != '0'){
+			document.write("<td align=center width=''><font size='2'><b>"+ qos_type[i][1]+ "</b></font></td>");
+			document.write("<td align=center width=''><font size='2'><b>"+ qos_type[i][2]+ "</b></font></td>");
+			document.write("<td align=center width=''><font size='2'><b>"+ qos_type[i][3]+ "</b></font></td>");
+			document.write("<td align=center width=''><font size='2'><b>"+ qos_type[i][4]+ "</b></font></td>");
+			document.write("<td align=center width=''><button name='ModType' value='ModType' onclick='edit_type("+qos_type[i][0]+");'>编辑</button></td>");
+			document.write("<td align=center width=''><button name='DelType' value='DelType' onclick='typeid_submit("+qos_type[i][0]+");'>删除</button></td></tr>");
+		}
+	}
+}
+
+function edit_class_tbl()
+{
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>规则</b></font></td>");
+	if(qos_class[class_array_current_index]){
+		document.write("<td width=''><font size='2'><b>"+ qos_class[class_array_current_index][0] + "</b></font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><b></b></font></td>");
+	}
+	document.write("</tr>");
+
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>wan</b></font></td>");
+	document.write("<td><select style='width:100px'  size='1' name='wanport'>");
+	show_wan_list();
+	document.write("</select></td>");
+	document.write("</tr>");
+
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>队列</b></font></td>");
+	document.write("<td><select style='width:100px'  size='1' name='queue'>");
+	for(var i = 0; i < queue_numer; i++)
+	{
+		document.write("<option value=\"" + qos_queue[i][0] + "\"> queue" + qos_queue[i][0] + "</option>");
+	}
+	document.write("</select></td>");
+	document.write("</tr>");
+	
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>DSCP值</b></font></td>");
+	if(qos_class[class_array_current_index]){
+		document.write("<td width=''><font size='2'><input type=‘text’ name='dscpRemark' size='8' maxlength='8' value='"+qos_class[class_array_current_index][3]+"'>&nbsp; (0-63)</font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><input type=‘text’ name='dscpRemark' size='8' maxlength='8'>&nbsp; (0-63)</font></td>");
+	}
+	document.write("</tr>");
+	
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>802.1P值</b></font></td>");
+	if(qos_class[class_array_current_index]){
+		document.write("<td width=''><font size='2'><input type=‘text’ name='dot1pRemark' size='8' maxlength='8' value='"+qos_class[class_array_current_index][4]+"'>&nbsp; (0-7)</font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><input type=‘text’ name='dot1pRemark' size='8' maxlength='8'>&nbsp; (0-7)</font></td>");
+	}
+	document.write("</tr>");
+}
+
+function edit_type_tbl()
+{
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>分类类型</b></font></td>");
+	
+	if(qos_type[type_array_current_index]){
+		document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='16' maxlength='16' value='"+qos_type[type_array_current_index][1]+"'></font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='16' maxlength='16'></font></td>");
+	}
+	document.write("</tr>");
+	
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>最小值</b></font></td>");
+	if(qos_type[type_array_current_index]){
+		document.write("<td width=''><font size='2'><input type=‘text’ name='minimum' size='32' maxlength='32' value='"+qos_type[type_array_current_index][2]+"'></font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><input type=‘text’ name='minimum' size='32' maxlength='32'></font></td>");
+	}
+	document.write("</tr>");
+	
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>最大值</b></font></td>");
+	if(qos_type[type_array_current_index]){
+		document.write("<td width=''><font size='2'><input type=‘text’ name='maximum' size='32' maxlength='32' value='"+qos_type[type_array_current_index][3]+"'></font></td>");
+	}
+	else{
+		document.write("<td width=''><font size='2'><input type=‘text’ name='maximum' size='32' maxlength='32'></font></td>");
+	}
+	document.write("</tr>");
+	
+	document.write("<tr>");
+	document.write("<td width=''><font size='2'><b>协议</b></font></td>");
+	document.write("<td><select style='width:100px'  size='1' name='protocol'>");
+	document.write("<option value=\"ALL\"> ALL </option>");
+	document.write("<option value=\"TCP\"> TCP </option>");
+	document.write("<option value=\"UDP\"> UDP </option>");
+	//document.write("<option value=\"ICMP\"> ICMP </option>");
+	document.write("</select></td>");
+	document.write("</tr>");
+}
+
+function updateQosState()
+{
+	// 1: add type  2: edit class  3: edit type
+	show_div(0,"edit_class");
+	show_div(0,"type_list");
+	show_div(0,"edit_type");
+	
+	if(operation == 1){
+		show_div(1,"type_list");
+	}
+	else if(operation == 3){
+		show_div(1,"type_list");
+		show_div(1,"edit_type");
+
+		if(qos_type[type_array_current_index] != '0'){
+
+			if(qos_type[type_array_current_index][4] == "ALL")
+				document.formQosAdd.protocol.selectedIndex = 0;
+			else if(qos_type[type_array_current_index][4] == "TCP")
+				document.formQosAdd.protocol.selectedIndex = 1;
+			else if(qos_type[type_array_current_index][4] == "UDP")
+				document.formQosAdd.protocol.selectedIndex = 2;	
+			else if(qos_type[type_array_current_index][4] == "ICMP")
+				document.formQosAdd.protocol.selectedIndex = 3;	
+		}
+	}
+	else if(operation == 2){
+		show_div(1,"edit_class");
+		show_div(1,"type_list");
+
+		if(qos_class[class_array_current_index] != '0'){
+			document.formQosAdd.wanport.selectedIndex = qos_class[class_array_current_index][1]-1;
+			document.formQosAdd.queue.selectedIndex = qos_class[class_array_current_index][2]-1;			
+		}
+	}
+
+	
+}
+
+function Load_Setting()
+{
+	updateQosState();
+}
+</script>
+</head>
+
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2><script>dw(uplink_multiPhyWan_qos_rule_header)</script></h2>
+
+<form action=/boafrm/formUplinkMultiPhyWanQosRule method=POST name="formQosAdd">
+<script> check_array_index();</script>
+<table border=0 width=600>
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_multiPhyWan_rule.htm" name="submit-url">
+<input type='hidden' name='submitUrl_uplink' value='/qos_multiPhyWan_uplink.htm'>
+<tr><font size=2>
+    <script>dw(uplink_multiPhyWan_qos_rule_header_explain)</script>
+</tr>
+<tr><hr size=1 noshade align=top></tr>
+<tr><td><button name="ReturnUplink" value="ReturnUplink" onClick="return true">返回上级页面</button><br></td></tr>
+</table>
+
+<table border=0 width=600>
+<tr><hr size=1 noshade align=top></tr>
+<tr><td><button name="AddCls" value="AddCls" onClick="return true">添加规则</button></td></tr>
+</table>
+
+<table border=0 width=600>
+<tr><hr size=1 noshade align=top></tr>
+<tr>
+    <script> show_wanPort()</script><br>
+</tr>
+</table>
+
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='8%'><font size='2'><b>&nbsp;规则&nbsp;</b></font></td>
+	<td class='table_title' align=center width='8%'><font size='2'><b>&nbsp;wan端口&nbsp;</b></font></td>
+	<td class='table_title' align=center width='8%'><font size='2'><b>&nbsp;队列&nbsp;</b></font></td>
+	<td class='table_title' align=center width='12%'><font size='2'><b>&nbsp;dscp重标记&nbsp;</b></font></td>
+	<td class='table_title' align=center width='12%'><font size='2'><b>&nbsp;802.1p重标记&nbsp;</b></font></td>
+	<td class='table_title' align=center width='10%'><font size='2'><b>&nbsp;分类类型&nbsp;</b></font></td>
+	<td class='table_title' align=center width='10%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='10%'><font size='2'><b>&nbsp;删除规则&nbsp;</b></font></td>
+</tr>
+<script> show_class_list()</script><br><br>
+</tbody>
+</table>
+
+<span id = "edit_class" class = "off" > 
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<script> edit_class_tbl()</script>
+</table>
+</span>
+
+<span id = "type_list" class = "off" > 
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='12%'><font size='2'><b>&nbsp;分类类型&nbsp;</b></font></td>
+	<td class='table_title' align=center width='20%'><font size='2'><b>&nbsp;最小值&nbsp;</b></font></td>
+	<td class='table_title' align=center width='20%'><font size='2'><b>&nbsp;最大值&nbsp;</b></font></td>
+	<td class='table_title' align=center width='8%'><font size='2'><b>&nbsp;协议&nbsp;</b></font></td>
+	<td class='table_title' align=center width='13%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='13%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_class_type_list()</script><br>
+</tbody>
+</table>
+</span>
+
+<span id = "edit_type" class = "off" > 
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top></tr><br>
+<script> edit_type_tbl()</script><br>
+</table>
+</span>
+
+<table border=0 width=220>
+<tr><hr size=1 noshade align=top></tr><br>
+<tr>
+	<td><input type="submit" value="确定" name="save_apply" onClick="return addRuleClick()"></td>
+</tr>
+</table>
+
+</form>	
+</blockquote>
+</body>
+</html>
+

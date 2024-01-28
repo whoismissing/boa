@@ -1,0 +1,528 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+var wan = <%getIndex("qosWan");%>;
+var max_rate = <%getIndex("max_rate");%>;
+var queue_numer = <%getIndex("queue_number");%>;
+var wanListNum = <%	getMultiWanIndex("WANIfaceNum");%>;
+
+var qos_enable;
+var qos_wanport;
+var en_force_weight;
+var dscp_remark;
+var qos_policy;
+var up_shaping;
+var dot1p_remark;
+var qos_mode;
+
+<%getQosWanPort();%>
+
+/*qos_queue[i] = {"queue+i", "enable", "priority", "weight"}*/
+var qos_queue = new Array(); /*different wan_port has different qos_queue*/
+
+<%getQosQueue();%>
+
+/*wan_qos_policy[i] = {"WAN(i+1)", "Enable"}*/
+var wan_qos_policy = new Array();
+
+<%getQoSWan();%>
+
+function addRuleClick()
+{
+	if(document.formMultiPhyWanQosAdd.uplinkSpeed.value > max_rate){
+		alert("上行带宽超过最大速率 " + max_rate);
+		document.formMultiPhyWanQosAdd.uplinkSpeed.focus();
+		return false;
+	}
+
+	if(qos_policy == 1)
+	{
+		var sum = 0;
+		if(queue_numer >= 1){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight0, 1, 100, "queue1权重")){
+				return false;
+			}
+					
+			if(document.formMultiPhyWanQosAdd.select10.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight0.value, 10);
+			}
+		}
+
+		if(queue_numer >= 2){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight1, 1, 100, "queue2权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select11.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight1.value, 10);
+			}
+		}
+
+		if(queue_numer >= 3){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight2, 1, 100, "queue3权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select12.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight2.value, 10);
+			}
+		}
+
+		if(queue_numer >= 4){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight3, 1, 100, "queue4权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select13.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight3.value, 10);
+			}
+		}
+
+		if(queue_numer >= 5){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight4, 1, 100, "queue5权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select14.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight4.value, 10);
+			}
+		}
+
+		if(queue_numer >= 6){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight5, 1, 100, "queue6权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select15.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight5.value, 10);
+			}
+		}
+
+		if(queue_numer >= 7){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight6, 1, 100, "queue7权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select16.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight6.value, 10);
+			}
+		}
+
+		if(queue_numer >= 8){
+			if(!checkFieldDigitRange(document.formMultiPhyWanQosAdd.weight7, 1, 100, "queue8权重")){
+				return false;
+			}
+			
+			if(document.formMultiPhyWanQosAdd.select17.checked){
+				sum += parseInt(document.formMultiPhyWanQosAdd.weight7.value, 10);
+			}
+		}
+	
+		if(sum != 100){
+			alert("所有启用队列的权重之和必须是100！");
+			return false;
+		}
+	}
+	
+	
+	return true;
+}
+
+function show_sp_queue_list()
+{	  	
+	for(var i = 0; i < queue_numer; i++){
+		document.write("<tr><td align=center width=\'\' ><font size=\'2\'> queue"+qos_queue[i][0]+"</td>");
+		document.write("<td align=center width=\'\' ><font size=\'2\'>"+qos_queue[i][2]+"</td>");
+		document.write("<td align=center width=\'\' ><input type=\'checkbox\' name=\'select"+i+"\' value=\'ON\'></td></tr>");
+	}
+}
+
+function show_wfq_queue_list()
+{	  
+	for(var i = 0; i < queue_numer; i++){
+		document.write("<tr><td align=center width=\'\' ><font size=\'2\'> queue"+qos_queue[i][0]+"</td>");
+		document.write("<td align=center width=\'\' ><font size=\'2\'><input type=\'text\' name=\'weight"+i+"\' size=\'4\' maxlength=\'4\' value="+qos_queue[i][3]+"></td>");
+		document.write("<td align=center width=\'\' ><input type=\'checkbox\' name=\'select"+1+i+"\' value=\'ON\'></td></tr>");
+		
+	}
+}
+function show_wan_list()
+{
+	var wan_flag = 0;
+	
+	for(var i = 0;i < wanListNum; i++)
+	{
+		if(wan_qos_policy[i][1] == '1')
+		{
+			wan_flag = 1;
+			document.write("<option value=\"" + (i + 1) + "\">" + wan_qos_policy[i][0] + "</option>");
+		}
+	}
+
+	if(wan_flag == 0)
+	{
+		document.write("<option value=\"0\">"+"无可用接口"+"</option>");
+	}
+}
+
+function updateQosState()
+{
+
+	if(qos_policy == 0){
+		show_div(1,"sp_policy");
+		show_div(0,"wfq_policy");
+	}
+	else if(qos_policy == 1){
+		show_div(0,"sp_policy");
+		show_div(1,"wfq_policy");
+	}
+	else{
+		show_div(0,"sp_policy");
+		show_div(0,"wfq_policy");
+	}	
+
+	disableTextField(document.formMultiPhyWanQosAdd.enForceWeight);
+	if(document.formMultiPhyWanQosAdd.enable.checked){
+		enableTextField(document.formMultiPhyWanQosAdd.uplinkSpeed);
+		enableTextField(document.formMultiPhyWanQosAdd.policy);
+		enableTextField(document.formMultiPhyWanQosAdd.dscpRemark);
+		enableTextField(document.formMultiPhyWanQosAdd.dot1pRemark);
+
+		if(document.formMultiPhyWanQosAdd.policy.value == 1){
+			enableTextField(document.formMultiPhyWanQosAdd.enForceWeight);
+		}
+
+		if(qos_policy == 0){
+			enableTextField(document.formMultiPhyWanQosAdd.service);
+			
+			if(queue_numer >= 1){
+				enableTextField(document.formMultiPhyWanQosAdd.select0);
+				if(qos_queue[0] && qos_queue[0][1] == "1"){
+					document.formMultiPhyWanQosAdd.select0.checked = true;
+				}
+			}
+
+			if(queue_numer >= 2){
+				enableTextField(document.formMultiPhyWanQosAdd.select1);
+				if(qos_queue[1] && qos_queue[1][1] == "1"){
+					document.formMultiPhyWanQosAdd.select1.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 3){
+				enableTextField(document.formMultiPhyWanQosAdd.select2);
+				if(qos_queue[2] && qos_queue[2][1] == "1"){
+					document.formMultiPhyWanQosAdd.select2.checked = true;
+				}
+			}
+
+			if(queue_numer >= 4){
+				enableTextField(document.formMultiPhyWanQosAdd.select3);
+				if(qos_queue[3] && qos_queue[3][1] == "1"){
+					document.formMultiPhyWanQosAdd.select3.checked = true;
+				}
+			}
+	
+			if(queue_numer >= 5){
+				enableTextField(document.formMultiPhyWanQosAdd.select4);
+				if(qos_queue[4] && qos_queue[4][1] == "1"){
+					document.formMultiPhyWanQosAdd.select4.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 6){
+				enableTextField(document.formMultiPhyWanQosAdd.select5);
+				if(qos_queue[5] && qos_queue[5][1] == "1"){
+					document.formMultiPhyWanQosAdd.select5.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 7){
+				enableTextField(document.formMultiPhyWanQosAdd.select6);
+				if(qos_queue[6] && qos_queue[6][1] == "1"){
+					document.formMultiPhyWanQosAdd.select6.checked = true;
+				}
+			}
+
+			if(queue_numer >= 8){
+				enableTextField(document.formMultiPhyWanQosAdd.select7);
+				if(qos_queue[7] && qos_queue[7][1] == "1"){
+					document.formMultiPhyWanQosAdd.select7.checked = true;
+				}
+			}
+		}
+		else if(qos_policy == 1){
+			disableTextField(document.formMultiPhyWanQosAdd.service);
+			
+			if(queue_numer >= 1){
+				enableTextField(document.formMultiPhyWanQosAdd.select10);
+				if(qos_queue[0] && qos_queue[0][1] == "1"){
+					document.formMultiPhyWanQosAdd.select10.checked = true;
+				}
+			}
+
+			if(queue_numer >= 2){
+				enableTextField(document.formMultiPhyWanQosAdd.select11);
+				if(qos_queue[1] && qos_queue[1][1] == "1"){
+					document.formMultiPhyWanQosAdd.select11.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 3){
+				enableTextField(document.formMultiPhyWanQosAdd.select12);
+				if(qos_queue[2] && qos_queue[2][1] == "1"){
+					document.formMultiPhyWanQosAdd.select12.checked = true;
+				}
+			}
+
+			if(queue_numer >= 4){
+				enableTextField(document.formMultiPhyWanQosAdd.select13);
+				if(qos_queue[3] && qos_queue[3][1] == "1"){
+					document.formMultiPhyWanQosAdd.select13.checked = true;
+				}
+			}
+	
+			if(queue_numer >= 5){
+				enableTextField(document.formMultiPhyWanQosAdd.select14);
+				if(qos_queue[4] && qos_queue[4][1] == "1"){
+					document.formMultiPhyWanQosAdd.select14.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 6){
+				enableTextField(document.formMultiPhyWanQosAdd.select15);
+				if(qos_queue[5] && qos_queue[5][1] == "1"){
+					document.formMultiPhyWanQosAdd.select15.checked = true;
+				}
+			}
+			
+			if(queue_numer >= 7){
+				enableTextField(document.formMultiPhyWanQosAdd.select16);
+				if(qos_queue[6] && qos_queue[6][1] == "1"){
+					document.formMultiPhyWanQosAdd.select16.checked = true;
+				}
+			}
+
+			if(queue_numer >= 8){
+				enableTextField(document.formMultiPhyWanQosAdd.select17);
+				if(qos_queue[7] && qos_queue[7][1] == "1"){
+					document.formMultiPhyWanQosAdd.select17.checked = true;
+				}
+			}
+		}
+	}
+	else{
+		disableTextField(document.formMultiPhyWanQosAdd.uplinkSpeed);
+		disableTextField(document.formMultiPhyWanQosAdd.service);
+		disableTextField(document.formMultiPhyWanQosAdd.policy);
+		disableTextField(document.formMultiPhyWanQosAdd.dscpRemark);
+		disableTextField(document.formMultiPhyWanQosAdd.dot1pRemark);
+
+		if(qos_policy == 0){
+			if(queue_numer >= 1)
+				disableTextField(document.formMultiPhyWanQosAdd.select0);
+
+			if(queue_numer >= 2)
+				disableTextField(document.formMultiPhyWanQosAdd.select1);
+
+			if(queue_numer >= 3)
+				disableTextField(document.formMultiPhyWanQosAdd.select2);
+
+			if(queue_numer >= 4)
+				disableTextField(document.formMultiPhyWanQosAdd.select3);
+
+			if(queue_numer >= 5)
+				disableTextField(document.formMultiPhyWanQosAdd.select4);
+
+			if(queue_numer >= 6)
+				disableTextField(document.formMultiPhyWanQosAdd.select5);
+
+			if(queue_numer >= 7)
+				disableTextField(document.formMultiPhyWanQosAdd.select6);
+
+			if(queue_numer >= 8)
+				disableTextField(document.formMultiPhyWanQosAdd.select7);
+		}
+		else if(qos_policy == 1){
+			if(queue_numer >= 1)
+				disableTextField(document.formMultiPhyWanQosAdd.select10);
+
+			if(queue_numer >= 2)
+				disableTextField(document.formMultiPhyWanQosAdd.select11);
+
+			if(queue_numer >= 3)
+				disableTextField(document.formMultiPhyWanQosAdd.select12);
+
+			if(queue_numer >= 4)
+				disableTextField(document.formMultiPhyWanQosAdd.select13);
+
+			if(queue_numer >= 5)
+				disableTextField(document.formMultiPhyWanQosAdd.select14);
+
+			if(queue_numer >= 6)
+				disableTextField(document.formMultiPhyWanQosAdd.select15);
+
+			if(queue_numer >= 7)
+				disableTextField(document.formMultiPhyWanQosAdd.select16);
+
+			if(queue_numer >= 8)
+				disableTextField(document.formMultiPhyWanQosAdd.select17);
+		}
+	}
+}
+
+function Load_Setting()
+{
+	document.formMultiPhyWanPort.Wan.selectedIndex = wan-1;
+		
+	if(qos_enable)
+		document.formMultiPhyWanQosAdd.enable.checked = true;
+	if(en_force_weight)
+		document.formMultiPhyWanQosAdd.enForceWeight.checked = true;
+	if(dscp_remark)
+		document.formMultiPhyWanQosAdd.dscpRemark.checked = true;
+
+	document.formMultiPhyWanQosAdd.uplinkSpeed.value = up_shaping;
+	document.formMultiPhyWanQosAdd.policy.selectedIndex = qos_policy;
+	document.formMultiPhyWanQosAdd.dot1pRemark.selectedIndex = dot1p_remark;	
+	document.formMultiPhyWanQosAdd.service.value = qos_mode;
+
+	updateQosState();
+}
+</script>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2><script>dw(uplink_multiPhyWan_qos_header)</script></h2>
+<form action=/boafrm/formMultiPhyWan method=POST name="formMultiPhyWanPort">
+
+<table border=0 width="600">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_multiPhyWan_uplink.htm" name="submit-url">
+<tr><font size=2>
+    <script>dw(uplink_multiPhyWan_qos_header_explain)</script>
+</tr>
+
+<tr><hr size=1 noshade align=top></tr>
+<tr>
+	<td width="30%"><font size=2><b>wan端口</b></font></td>
+	<td>
+		<select style="width:90px"  size="1" name="Wan" onchange="formMultiPhyWanPort.submit()">
+		<script> show_wan_list()</script><br><br>
+		</select></font>
+	</td>
+</tr>
+</table>
+</form>
+
+<form action=/boafrm/formMultiPhyWanUplinkQoS method=POST name="formMultiPhyWanQosAdd">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_multiPhyWan_uplink.htm" name="submit-url">
+<table border=0 width="600">
+<tr><hr size=1 noshade align=center></tr>
+<tr>
+    <td width="45%"><font size=2><b>wan端口qos设置:</b></font></td>
+    <td>&nbsp;</td>
+</tr>
+<tr>
+  	<td width="30%"><font size=2><b>启用QoS</b></font></td>
+  	<td><input type="checkbox" name="enable" value="ON" ONCLICK=updateQosState()></b></font><br></td>
+</tr>
+<tr>
+    <td width="30%"><font size=2><b>上行带宽</b></font></td>
+    <td width="70%"><font size=2><input type="text" name="uplinkSpeed" size="16" maxlength="16">&nbsp;(单位:Kbps, 0表示不限速)</font></td>
+</tr>
+<tr>
+    <td width="30%"><font size=2><b>规则模板</b></font></td>
+	<td width="70%"><font size=2><input type="text" name="service" size="32" maxlength="64">&nbsp;</font></td>
+</tr>
+<tr>
+	<td width="30%"><font size=2><b>调度策略</b></font></td>
+	<td>
+		<select style="width:90px"  size="1" name="policy" onchange="formMultiPhyWanQosAdd.submit()">
+		<option value="0">SP</option>
+		<option value="1">WFQ</option>
+		</select></font>
+	</td>
+</tr>
+<tr>
+	<td><font size=2><b>启用强制带宽</b></font></td>
+	<td><input type="checkbox" name="enForceWeight" value="ON"></b></font><br></td>
+</tr>
+<tr>
+	<td><font size=2><b>启用Dscp重标记</b></font></td>
+	<td><input type="checkbox" name="dscpRemark" value="ON"></b></font><br></td>
+</tr>
+<tr>
+	<td width="30%"><font size=2><b>启用Dot1p重标记</b></font></td>
+	<td>
+		<select style="width:90px"  size="1" name="dot1pRemark">
+		<option value="0">不启用</option>
+		<option value="1">透传</option>
+		<option value="2">重标记</option>
+		</select></b></font>
+	</td>
+</tr>
+</table>
+
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<input type='hidden' name='submitUrl_class' value='/qos_multiPhyWan_rule.htm'>
+<tr><td><button name="AddCls" value="AddCls">进入分类编辑页面</button></td></tr>
+</table>
+
+
+
+<span id = "sp_policy" class = "off" > 
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;Queue &nbsp;</b></font></td>
+	<td class='table_title' align=center width='40%'><font size='2'><b>&nbsp;Priority (1代表优先级最高)&nbsp;</font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;Enable &nbsp;</b></font></td>
+</tr>
+<script> show_sp_queue_list()</script><br><br>
+</tbody>
+</table>
+</span>
+
+<span id = "wfq_policy" class = "off" > 
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;Queue &nbsp;</b></font></td>
+	<td class='table_title' align=center width='40%'><font size='2'><b>&nbsp;Weight &nbsp;</font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;Enable &nbsp;</b></font></td>
+</tr>
+<script> show_wfq_queue_list()</script><br><br>
+</tbody>
+</table>
+</span>
+
+
+<table border=0 width=220>
+<br>
+<tr>
+	<td><input type="submit" value="确定" name="save_apply" onClick='return addRuleClick()'></td>
+</tr>
+</table>
+</form>
+
+</blockquote>
+</body>
+</html>

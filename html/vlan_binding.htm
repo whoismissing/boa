@@ -1,0 +1,203 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>虚拟局域网绑定</title>
+<script type="text/javascript" src="util_gw.js"> </script>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<% getInfo("include_css"); %>
+<script>
+
+var hwnatvid =  <% getIndex("hwnatlanvid"); %>;
+
+function addClick()
+{
+  if (!document.formVlanBindingAdd.enabled.checked)
+  	return true;
+
+	var value=document.formVlanBindingAdd.hwnatlanvid.value;
+	if (value != ""){
+	 	if (!checkFieldDigitRange(document.formVlanBindingAdd.hwnatlanvid, 0, 4095, vlan_binding_id))
+			return false;
+		else{
+			if (!confirm(vlan_binding_lanid +value +' ?') ) {
+				return false;
+			}
+			else
+				return true;
+		}
+	}	
+  	
+  return true;
+}
+
+
+function deleteClick()
+{
+  if ( !confirm(vlan_binding_delete_select) ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+function deleteAllClick()
+{
+   if ( !confirm(vlan_binding_delete_all) ) {
+	return false;
+  }
+  else
+	return true;
+}
+
+
+function disableDelButton()
+{
+	disableButton(document.formVlanBindingDel.deleteSelVlanBinding);
+	disableButton(document.formVlanBindingDel.deleteAllVlanBinding);
+}
+
+function updateState()
+{
+  if (document.formVlanBindingAdd.enabled.checked) {
+ 	enableTextField(document.formVlanBindingAdd.bindingtype);
+	enableTextField(document.formVlanBindingAdd.bindingvlan);
+	enableTextField(document.formVlanBindingAdd.hwnatlanvid);
+	enableTextField(document.formVlanBindingAdd.landevice);
+	bindingtypeChange(document.formVlanBindingAdd.bindingtype.selectedIndex);
+  }
+  else {
+ 	disableTextField(document.formVlanBindingAdd.bindingtype);
+  	disableTextField(document.formVlanBindingAdd.bindingvlan);
+	disableTextField(document.formVlanBindingAdd.hwnatlanvid);
+	disableTextField(document.formVlanBindingAdd.landevice);
+
+	enableTextField(document.formVlanBindingAdd.addVlanBinding);
+	enableTextField(document.formVlanBindingAdd.save_apply);
+
+  }
+}
+
+function bindingtypeChange(index)
+{
+
+
+  if (index == 0) {
+  	disableTextField(document.formVlanBindingAdd.bindingvlan);
+	disableTextField(document.formVlanBindingAdd.hwnatlanvid);
+	disableTextField(document.formVlanBindingAdd.addVlanBinding);
+	disableTextField(document.formVlanBindingAdd.save_apply);
+  }
+  else {
+	enableTextField(document.formVlanBindingAdd.bindingvlan);
+	enableTextField(document.formVlanBindingAdd.hwnatlanvid);
+	enableTextField(document.formVlanBindingAdd.addVlanBinding);
+	enableTextField(document.formVlanBindingAdd.save_apply);
+  }
+  
+}
+
+function Load_Setting()
+{
+	if ( <% getIndex("vlanBindingEnabled"); %> )
+		document.formVlanBindingAdd.enabled.checked = true;
+	updateState();
+	//bindingtypeChange(0);
+	bindingtypeChange(document.formVlanBindingAdd.bindingtype.selectedIndex);
+	
+	document.formVlanBindingAdd.hwnatlanvid.value = hwnatvid;
+}
+
+</script>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2><script>dw(vlan_binding_header)</script></h2>
+
+<table border=0 width="500" cellspacing=4 cellpadding=0>
+<tr><td><font size=2>
+<script>dw(vlan_binding_header_explain)</script>
+</font></td></tr>
+
+<tr><td><hr size=1 noshade align=top></td></tr>
+
+<form action=/boafrm/formVlanBinding method=POST name="formVlanBindingAdd">
+<INPUT type=hidden name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<tr><td><font size=2><b>
+   	<input type="checkbox" name="enabled" value="ON" ONCLICK=updateState()>&nbsp;&nbsp;<script>dw(vlan_binding_enable)</script></b><br>
+    </td>
+</tr>
+
+<tr><td>
+     <p>
+      <% showLanDeviceList(); %>
+	 </p>
+	 
+     <p>
+  	<font size=2><b><script>dw(vlan_binding_type)</script> &nbsp;&nbsp;&nbsp;</b> <select name="bindingtype" onChange="bindingtypeChange(document.formVlanBindingAdd.bindingtype.selectedIndex)">
+    								   <option select value="0"><script>dw(vlan_binding_port)</script></option>
+    								   <option value="1"><script>dw(vlan_binding_vlan)</script></option>
+    								   </select></font>&nbsp;&nbsp
+    </p>
+    
+    <p>								   
+    <font size=2><b><script>dw(vlan_binding_bindvlan)</script>&nbsp;&nbsp;&nbsp;&nbsp;</b><input type="text" name="bindingvlan" size="60" maxlength="60"></font>&nbsp;&nbsp;
+    </p>
+    
+    <p>
+  	<font size=2><b><script>dw(vlan_binding_hw_nat)</script></b><input type="text" name="hwnatlanvid" size="12" maxlength="20"></font>
+    </p>
+
+     
+     <p>
+<% getInfo("apply_prompt_comment_start");%>	   
+	    <input type="submit" value="Apply Changes" name="addVlanBinding" onClick="return addClick()">&nbsp;&nbsp;
+	    <script>document.formVlanBindingAdd.addVlanBinding.value = vlan_binding_apply;</script>
+        <input type="reset" value="Reset" name="reset">
+        <script>document.formVlanBindingAdd.reset.value = vlan_binding_reset;</script>
+<% getInfo("apply_prompt_comment_end");%>
+<% getInfo("apply_direct_comment_start");%>
+        <input type="submit" value="Save" name="addVlanBinding" onClick="return addClick()">&nbsp;&nbsp;
+        <script>document.formVlanBindingAdd.addVlanBinding.value = vlan_binding_save;</script>
+	    <input type="submit" value="Save & Apply" name="save_apply" onClick="return addClick()">&nbsp;&nbsp;
+	    <script>document.formVlanBindingAdd.save_apply.value = vlan_binding_save_apply;</script>
+        <input type="reset" value="Reset" name="reset">
+        <script>document.formVlanBindingAdd.reset.value = vlan_binding_reset;</script>
+        <input type="hidden" value="1" name="addVlanBindingFlag">		
+<% getInfo("apply_direct_comment_end");%>
+        <input type="hidden" value="/vlan_binding.htm" name="submit-url">
+     </p>
+
+     
+   </td></tr>
+   
+  <script> updateState(); </script>
+  
+</form>
+</table>
+
+<br>
+<form action=/boafrm/formVlanBinding method=POST name="formVlanBindingDel">
+  <table border="0" width=500>
+  <tr><font size=2><b><script>dw(vlan_binding_cur_table)</script></b></font></tr>
+  <% vlanBindingList(); %>
+  </table>
+  <br>
+  <input type="submit" value="Delete Selected" name="deleteSelVlanBinding" onClick="return deleteClick()">&nbsp;&nbsp;
+  <script>document.formVlanBindingDel.deleteSelVlanBinding.value = vlan_binding_delete_select;</script>
+  <input type="submit" value="Delete All" name="deleteAllVlanBinding" onClick="return deleteAllClick()">&nbsp;&nbsp;&nbsp;
+  <script>document.formVlanBindingDel.deleteAllVlanBinding.value = vlan_binding_delete_all;</script>
+  <input type="reset" value="Reset" name="reset">
+    <script>document.formVlanBindingDel.reset.value = vlan_binding_reset;</script>
+  <input type="hidden" value="/vlan_binding.htm" name="submit-url">
+ <script>
+	if ( <% getIndex("vlanBindingNum"); %> == 0 )
+		disableDelButton();
+ </script>
+</form>
+
+</blockquote>
+</body>
+</html>

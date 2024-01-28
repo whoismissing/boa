@@ -24,6 +24,10 @@
 
 #include "boa.h"
 
+// david
+#if 1
+int cgi_log_fd=0;
+#else
 int cgi_log_fd;
 
 /*
@@ -104,32 +108,6 @@ void open_logs(void)
 #endif
 }
 
-
-/* Print the remote IP to the stream FP.  */
-static void
-print_remote_ip (request * req, FILE *fp)
-{
-    if (log_forwarded_for) {
-        const char *s = req->header_forwarded_for;
-        if (s && *s) {
-            for (; *s; s++) {
-              /* Take extra care not to write bogus characters.  In
-                 particular no spaces.  We know that only IP addresses
-                 and a comma are allowed in the XFF header.  */
-                if (strchr ("0123456789.abcdef:ABCDEF,", *s))
-                  putc (*s, fp);
-                else
-                  putc ('_', fp);
-            }
-        }
-        else /* Missing - print remote IP in parenthesis.  */
-          fprintf (fp, "(%s)", req->remote_ip_addr);
-      }
-    else
-      fputs (req->remote_ip_addr, fp);
-}
-
-
 /*
  * Name: log_access
  *
@@ -172,39 +150,14 @@ void log_access(request * req)
     } else if (vhost_root) {
         printf("%s ", (req->host ? req->host : "(null)"));
     }
-    print_remote_ip (req, stdout);
-    printf(" - - %s\"%s\" %d %zu \"%s\" \"%s\"\n",
+    printf("%s - - %s\"%s\" %d %ld \"%s\" \"%s\"\n",
+           req->remote_ip_addr,
            get_commonlog_time(),
            req->logline ? req->logline : "-",
            req->response_status,
            req->bytes_written,
            (req->header_referer ? req->header_referer : "-"),
            (req->header_user_agent ? req->header_user_agent : "-"));
-}
-
-static char *escape_pathname(const char *inp)
-{
-    const unsigned char *s;
-    char *escaped, *d;
-
-    if (!inp) {
-        return NULL;
-    }
-    escaped = malloc (4 * strlen(inp) + 1);
-    if (!escaped) {
-    	perror("malloc");
-	return NULL;
-    }
-    for (d = escaped, s = (const unsigned char *)inp; *s; s++) {
-        if (needs_escape (*s)) {
-            snprintf (d, 5, "\\x%02x", *s);
-            d += strlen (d);
-        } else {
-            *d++ = *s;
-        }
-    }
-    *d++ = '\0';
-    return escaped;
 }
 
 /*
@@ -224,28 +177,26 @@ static char *escape_pathname(const char *inp)
 void log_error_doc(request * req)
 {
     int errno_save = errno;
-    char *escaped_pathname;
 
     if (virtualhost) {
         fprintf(stderr, "%s ", req->local_ip_addr);
     } else if (vhost_root) {
         fprintf(stderr, "%s ", (req->host ? req->host : "(null)"));
     }
-    escaped_pathname = escape_pathname(req->pathname);
-    print_remote_ip (req, stderr);
     if (vhost_root) {
-        fprintf(stderr, " - - %srequest [%s] \"%s\" (\"%s\"): ",
+        fprintf(stderr, "%s - - %srequest [%s] \"%s\" (\"%s\"): ",
+                req->remote_ip_addr,
                 get_commonlog_time(),
                 (req->header_host ? req->header_host : "(null)"),
                 (req->logline ? req->logline : "(null)"),
-                (escaped_pathname ? escaped_pathname : "(null)"));
+                (req->pathname ? req->pathname : "(null)"));
     } else {
-        fprintf(stderr, " - - %srequest \"%s\" (\"%s\"): ",
+        fprintf(stderr, "%s - - %srequest \"%s\" (\"%s\"): ",
+                req->remote_ip_addr,
                 get_commonlog_time(),
                 (req->logline ? req->logline : "(null)"),
-                (escaped_pathname ? escaped_pathname : "(null)"));
+                (req->pathname ? req->pathname : "(null)"));
     }
-    free(escaped_pathname);
 
     errno = errno_save;
 }
@@ -335,4 +286,5 @@ void log_error_mesg_fatal(const char *file, int line, const char *mesg)
     perror(mesg);
     exit(EXIT_FAILURE);
 }
+#endif
 #endif

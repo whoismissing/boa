@@ -25,9 +25,7 @@
 #ifndef _BOA_H
 #define _BOA_H
 
-/* Important, include before anything else */
 #include "config.h"
-
 #include <errno.h>
 #include <stdlib.h>             /* malloc, free, etc. */
 #include <stdio.h>              /* stdin, stdout, stderr */
@@ -52,6 +50,52 @@
 #include "defines.h"
 #include "globals.h"
 
+#ifdef BOA_WITH_MBEDTLS
+#include "mbedtls/entropy.h"
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/certs.h"
+#include "mbedtls/x509.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/net.h"
+#include "mbedtls/error.h"
+#include "mbedtls/debug.h"
+#if defined(MBEDTLS_SSL_CACHE_C)
+#include "mbedtls/ssl_cache.h"
+#endif
+
+//#define BOA_MBEDTLS_DEBUG
+
+#define DEBUG_LEVEL         0
+#define mbedtls_fprintf     fprintf
+#if 0
+#define mbedtls_printf      printf
+#else
+#ifdef BOA_MBEDTLS_DEBUG
+#define mbedtls_printf(fmt, arg...) fprintf(stderr, "[%s:%s:%d] "fmt"\n",__FILE__,__FUNCTION__,__LINE__,##arg)
+#else
+#define mbedtls_printf(a,...) do{}while(0)
+#endif
+
+#endif
+
+#define mbedtls_pers        "ssl_server"
+#define MAX(a,b)	((a)>(b))?(a):(b)
+#define BOA_REQ_TYPE_HTTP   80
+#define BOA_REQ_TYPE_HTTPS  433
+
+mbedtls_net_context         mbedtls_listen_fd;
+mbedtls_entropy_context     mbedtls_entropy;
+mbedtls_ctr_drbg_context    mbedtls_ctr_drbg;
+mbedtls_ssl_config          mbedtls_conf;
+mbedtls_x509_crt            mbedtls_srvcert;
+mbedtls_pk_context          mbedtls_pkey;
+#if defined(MBEDTLS_SSL_CACHE_C)
+mbedtls_ssl_cache_context   mbedtls_cache;
+#endif
+
+int InitMbedtlsStuff();
+#endif
+
 /* alias */
 void add_alias(const char *fakename, const char *realname, enum ALIAS type);
 int translate_uri(request * req);
@@ -68,6 +112,11 @@ int init_get(request * req);
 int process_get(request * req);
 int get_dir(request * req, struct stat *statbuf);
 
+#ifdef SUPPORT_ASP
+int init_form(request * req);
+int init_get2(request * req);
+#endif
+
 /* hash */
 unsigned get_mime_hash_value(const char *extension);
 char *get_mime_type(const char *filename);
@@ -78,6 +127,8 @@ void hash_show_stats(void);
 void add_mime_type(const char *extension, const char *type);
 
 /* log */
+// david
+#if 0
 void open_logs(void);
 void log_access(request * req);
 void log_error_doc(request * req);
@@ -90,6 +141,31 @@ void log_error_mesg_fatal(const char *file, int line, const char *func, const ch
 #else
 void log_error_mesg(const char *file, int line, const char *mesg);
 void log_error_mesg_fatal(const char *file, int line, const char *mesg);
+#endif
+#else
+#define open_logs() do {} while(0)
+#define log_access(req) do {} while(0)
+#define log_error_doc(req) do {} while(0)
+#define boa_perror(req, message) do {} while(0)
+#define log_error_time() do {} while(0)
+#define log_error(mesg) do {} while(0)
+#ifdef HAVE_FUNC
+#define log_error_mesg(file, line, func, mesg) do {} while(0)
+#define log_error_mesg_fatal(file, line, func, mesg) 	\
+	do {	\
+		printf("FATAL ERROR at file : %s, func : %s, line_num : %d, error_msg : %s", \
+						file, func, line, mesg);	\
+		exit(EXIT_FAILURE);	\
+	} while(0)
+#else
+#define log_error_mesg(file, line, mesg) do {} while(0)
+#define log_error_mesg_fatal(file, line, mesg)	\
+	do {	\
+		printf("FATAL ERROR at file : %s, line_num : %d, error_msg : %s", \
+						file, line, mesg);  \
+		exit(EXIT_FAILURE); \
+} while(0)
+#endif
 #endif
 
 /* queue */
@@ -105,7 +181,11 @@ int write_body(request * req);
 
 /* request */
 request *new_request(void);
+#ifdef BOA_WITH_OPENSSL
+request *get_request(int);
+#else
 void get_request(int);
+#endif
 void process_requests(int server_s);
 int process_header_end(request * req);
 int process_header_line(request * req);
@@ -128,9 +208,11 @@ int complete_response(request *req);
 
 void send_r_continue(request * req); /* 100 */
 void send_r_request_ok(request * req); /* 200 */
+void send_r_request_ok2(request * req); /* 200 */
 void send_r_no_content(request * req); /* 204 */
 void send_r_partial_content(request * req); /* 206 */
 void send_r_moved_perm(request * req, const char *url); /* 301 */
+void send_redirect_perm(request * req, const char *url);
 void send_r_moved_temp(request * req, const char *url, const char *more_hdr); /* 302 */
 void send_r_not_modified(request * req); /* 304 */
 void send_r_bad_request(request * req); /* 400 */
@@ -154,6 +236,10 @@ void clear_common_env(void);
 int add_cgi_env(request * req, const char *key, const char *value, int http_prefix);
 int init_cgi(request * req);
 
+#ifdef SUPPORT_ASP
+int complete_env(request * req);
+#endif
+
 /* signals */
 void init_signals(void);
 void reset_signals(void);
@@ -167,8 +253,17 @@ void sigterm_stage2_run(void);
 void clean_pathname(char *pathname);
 char *get_commonlog_time(void);
 void rfc822_time_buf(char *buf, time_t s);
-char *simple_itoa(uint64_t i);
+char *simple_itoa(unsigned int i);
+#if defined(ENABLE_LFS)
+char * simple_off64Toa(off64_t i);
+#endif
+
+#if defined(ENABLE_LFS)
+off64_t boa_atoi(const char *s);
+#else
 int boa_atoi(const char *s);
+#endif
+
 int month2int(const char *month);
 int modified_since(time_t * mtime, const char *if_modified_since);
 int unescape_uri(char *uri, char **query_string);
@@ -177,7 +272,6 @@ int real_set_block_fd(int fd);
 int real_set_nonblock_fd(int fd);
 char *to_upper(char *str);
 void strlower(char *s);
-char *strconcat (const char *s1, ...) BOA_ATTR_SENTINEL(0);
 int check_host(const char *r);
 #ifndef DISABLE_DEBUG
 void parse_debug(char *foo);
@@ -229,4 +323,7 @@ void range_pool_push(Range * r);
 int ranges_fixup(request * req);
 int range_parse(request * req, const char *str);
 
+#ifdef BOA_PHP_SUPPORT
+int isPhpReq(request * req);
+#endif
 #endif

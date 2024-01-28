@@ -19,7 +19,6 @@
 
 /* $Id: index_dir.c,v 1.32.2.7 2005/02/22 03:00:24 jnelson Exp $*/
 
-#include "config.h"
 #include <stdio.h>
 #include <sys/stat.h>
 #include <limits.h>             /* for PATH_MAX */
@@ -267,12 +266,10 @@ int index_directory(char *dir, char *title)
         printf("<tr>"
                "<td width=\"40%%\"><a href=\"%s/\">%s/</a></td>"
                "<td align=right>%s</td>"
-               "<td align=right>"
-               PRINTF_OFF_T_ARG
-               " bytes</td>"
+               "<td align=right>%ld bytes</td>"
                "</tr>\n",
                escaped_filename, html_filename,
-               ctime(&statbuf.st_mtime), (off_t) statbuf.st_size);
+               ctime(&statbuf.st_mtime), (long) statbuf.st_size);
     }
 
     printf
@@ -315,12 +312,10 @@ int index_directory(char *dir, char *title)
                    "<td width=\"40%%\"><a href=\"%s\">%s</a> "
                    "<a href=\"%s.gz\">(.gz)</a></td>"
                    "<td align=right>%s</td>"
-                   "<td align=right>"
-                   PRINTF_OFF_T_ARG
-                   "bytes</td>"
+                   "<td align=right>%ld bytes</td>"
                    "</tr>\n",
                    escaped_filename, html_filename, http_filename,
-                   ctime(&statbuf.st_mtime), (off_t) statbuf.st_size);
+                   ctime(&statbuf.st_mtime), (long) statbuf.st_size);
         } else {
 #endif
             if (html_escape_string(http_filename, escaped_filename,
@@ -331,12 +326,10 @@ int index_directory(char *dir, char *title)
             printf("<tr>"
                    "<td width=\"40%%\"><a href=\"%s\">%s</a></td>"
                    "<td align=right>%s</td>"
-                   "<td align=right>"
-                   PRINTF_OFF_T_ARG
-                   "bytes</td>"
+                   "<td align=right>%ld bytes</td>"
                    "</tr>\n",
                    escaped_filename, html_filename,
-                   ctime(&statbuf.st_mtime), (off_t) statbuf.st_size);
+                   ctime(&statbuf.st_mtime), (long) statbuf.st_size);
 #ifdef GUNZIP
         }
 #endif

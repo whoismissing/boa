@@ -25,6 +25,13 @@
 #ifndef _DEFINES_H
 #define _DEFINES_H
 
+#define SUPPORT_ASP
+//#define SUPPORT_URL_LOGIN
+
+#define NEW_POST
+#define USE_AUTH
+#define CSRF_SECURITY_PATCH
+
 /***** Change this, or use -c on the command line to specify it *****/
 
 #ifndef SERVER_ROOT
@@ -45,15 +52,31 @@
 #define DEFAULT_CONFIG_FILE "boa.conf" /* locate me in the server root */
 
 /***** Change this via the SinglePostLimit configuration value in boa.conf *****/
-#define SINGLE_POST_LIMIT_DEFAULT               1024 * 1024 /* 1 MB */
+//davidhsu
+//#define SINGLE_POST_LIMIT_DEFAULT               1024 * 1024 /* 1 MB */
+#if defined(CONFIG_RTL_WAPI_SUPPORT) || defined(HTTP_FILE_SERVER_SUPPORTED) || defined(CONFIG_RTK_VOIP) || defined(CONFIG_RTL_ULINKER) || defined (CONFIG_APP_TR069)
+#define SINGLE_POST_LIMIT_DEFAULT             1024*1024*4 /* 4 MB */
+#elif defined(CONFIG_APP_APPLE_MFI_WAC)
+#define SINGLE_POST_LIMIT_DEFAULT             1024*1024*8 /* 8 MB */
+#else
+#define SINGLE_POST_LIMIT_DEFAULT             1024*1024*2 /* 2 MB */
+#endif
 
 /***** Various stuff that you may want to tweak, but probably shouldn't *****/
 
 #define SOCKETBUF_SIZE                          32768
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+#define CLIENT_STREAM_SIZE                      (64*1024)
+#define BUFFER_SIZE                             CLIENT_STREAM_SIZE
+#else
 #define CLIENT_STREAM_SIZE                      8192
-#define BUFFER_SIZE                             4096
-/* Changed from 1024 to cope with mailman problem.  */
-#define MAX_HEADER_LENGTH			1536
+#define BUFFER_SIZE                             8192
+#endif
+#ifdef SUPPORT_ASP
+#define MAX_HEADER_LENGTH			2048
+#else
+#define MAX_HEADER_LENGTH			1024
+#endif
 
 #define MIME_HASHTABLE_SIZE			47
 #define ALIAS_HASHTABLE_SIZE                    17
@@ -78,7 +101,7 @@
 #endif
 
 #ifndef SERVER_VERSION
-#define SERVER_VERSION 				"Boa/0.94.101wk"
+#define SERVER_VERSION 				"Boa/0.94.14rc21"
 #endif
 
 #define CGI_VERSION				"CGI/1.1"
@@ -93,6 +116,11 @@
 #define CGI_ARGC_MAX 128
 
 #define SERVER_METHOD "http"
+#ifdef SUPPORT_ASP
+#define REBOOT			10
+#endif
+
+#define MAX_UPLOAD_SIZE	200000		// davidhsu
 
 /*********** MMAP_LIST CONSTANTS ************************/
 #define MMAP_LIST_SIZE 256
@@ -139,6 +167,7 @@ extern int debug_level;
 
 #define DEBUG(foo)          if (real_debug_level & foo)
 
+#define DEBUG_BOA           (1<<0)
 #define DEBUG_ALIAS         (1<<0)
 #define DEBUG_CGI_OUTPUT    (1<<1)
 #define DEBUG_CGI_INPUT     (1<<2)
@@ -180,8 +209,27 @@ extern int debug_level;
 #define EXIT_FAILURE 1
 #endif
 
-#ifndef DIM
-# define DIM(array) (sizeof (array) / sizeof (*array))
-#endif
+#ifdef BOA_WITH_OPENSSL
+/******************* ERRORS *****************/
 
+#define SERVER_ERROR    1
+#define OUT_OF_MEMORY   2
+#define NO_CREATE_SOCKET  3
+#define NO_FCNTL    4
+#define NO_SETSOCKOPT   5
+#define NO_BIND     6
+#define NO_LISTEN   7
+#define NO_SETGID   8
+#define NO_SETUID   9
+#define NO_OPEN_LOG   10
+#define SELECT      11
+#define GETPWUID    12
+#define INITGROUPS    13
+#define CANNOT_CHROOT           14
+
+#define SHUTDOWN    15    /* do not change */
+#define NO_SSL 		16
+#elif defined(BOA_WITH_MBEDTLS)
+#define NO_FCNTL    4
+#endif
 #endif

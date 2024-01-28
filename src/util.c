@@ -1,30 +1,29 @@
-/* util.c
- * Boa, an http server
- * Copyright (C) 1995 Paul Phillips <paulp@go2net.com>
- * Some changes Copyright (C) 1996 Charles F. Randall <crandall@goldsys.com>
- * Copyright (C) 1996-1999 Larry Doolittle <ldoolitt@boa.org>
- * Copyright (C) 1996-2005 Jon Nelson <jnelson@boa.org>
- * Copyright (C) 2017 g10 Code GmbH
+/*
+ *  Boa, an http server
+ *  Copyright (C) 1995 Paul Phillips <paulp@go2net.com>
+ *  Some changes Copyright (C) 1996 Charles F. Randall <crandall@goldsys.com>
+ *  Copyright (C) 1996-1999 Larry Doolittle <ldoolitt@boa.org>
+ *  Copyright (C) 1996-2005 Jon Nelson <jnelson@boa.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 1, or (at your option)
+ *  any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, see <https://www.gnu.org/licenses/>.
- * SPDX-License-Identifier: GPL-2.0+
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *
  */
 
 /* $Id: util.c,v 1.61.2.22 2005/02/22 14:11:29 jnelson Exp $ */
 
 #include "boa.h"
-#include <stdarg.h>
 
 static int date_to_tm(struct tm *file_gmt, const char *cmtime);
 
@@ -411,6 +410,13 @@ int unescape_uri(char *uri, char **query_string)
             uri_old++;
             if ((c = *uri_old++) && (d = *uri_old++)) {
                 *uri = HEX_TO_DECIMAL(c, d);
+#ifndef HTTP_FILE_SERVER_SUPPORTED
+                if (*uri < 32 || *uri > 126) {
+                    /* control chars in URI */
+                    *uri = '\0';
+                    return 0;
+                }
+#endif
             } else {
                 *uri = '\0';
                 return 0;
@@ -498,7 +504,7 @@ void rfc822_time_buf(char *buf, time_t s)
     memcpy(p, day_tab + t->tm_wday * 4, 4);
 }
 
-char *simple_itoa(uint64_t i)
+char *simple_itoa(unsigned int i)
 {
     /* 21 digits plus null terminator, good for 64-bit or smaller ints
      * for bigger ints, use a bigger buffer!
@@ -515,24 +521,55 @@ char *simple_itoa(uint64_t i)
     } while (i != 0);
     return p;
 }
-
+#if defined(ENABLE_LFS)
+char * simple_off64Toa(off64_t i)
+{
+	static char local[22]={0};
+    char *p = &local[21];
+    *p = '\0';
+    do {
+        *--p = '0' + i % 10;
+        i /= 10;
+    } while (i != 0);
+    return p;
+}
+#endif
 /* I don't "do" negative conversions
  * Therefore, -1 indicates error
  */
 
+#if defined(ENABLE_LFS)
+off64_t boa_atoi(const char *s)
+#else
 int boa_atoi(const char *s)
+#endif
 {
-    int retval;
+#if defined(ENABLE_LFS)
+	off64_t retval=0;
+	char reconv[64]={0};
+#else			
+    int retval=0;
     char *reconv;
+#endif    
+    if(!s) return -1;
 
-    if (!isdigit(*s))
+    if (!isdigit(*s)){
         return -1;
-
+	}
+#if defined(ENABLE_LFS)
+    retval = atoll(s);
+#else    
     retval = atoi(s);
-    if (retval < 0)
+#endif    
+    if (retval < 0){
         return -1;
+	}
+#if defined(ENABLE_LFS)	
+	sprintf(reconv, "%llu", retval);
+#else
+	reconv = simple_itoa((unsigned int) retval);
+#endif    
 
-    reconv = simple_itoa((unsigned int) retval);
     if (memcmp(s, reconv, strlen(s)) != 0) {
         return -1;
     }
@@ -648,7 +685,7 @@ int check_host(const char *r)
      *
      */
     const char *c;
-    short period_ok;
+    short period_ok = 0;
     short len = 0;
 
     c = r;
@@ -664,7 +701,6 @@ int check_host(const char *r)
         return -1;
 
     len = 1;
-    period_ok = 1;/* We know that we don't have a period (isalnum() above)  */
     while (*(++c) != '\0') {
         /* interior letters may be alphanumeric, '-', or '.' */
         /* '.' may not follow '.' */
@@ -691,58 +727,6 @@ void strlower(char *s)
         ++s;
     }
 }
-
-
-/* Helper for strconcat.  */
-static char *
-do_strconcat (const char *s1, va_list arg_ptr)
-{
-  const char *argv[48];
-  size_t argc;
-  size_t needed;
-  char *buffer, *p;
-
-  argc = 0;
-  argv[argc++] = s1;
-  needed = strlen (s1);
-  while (((argv[argc] = va_arg (arg_ptr, const char *))))
-    {
-      needed += strlen (argv[argc]);
-      if (argc >= DIM (argv)-1)
-        {
-          errno = EINVAL;
-          return NULL;
-        }
-      argc++;
-    }
-  needed++;
-  buffer = malloc (needed);
-  if (buffer)
-    {
-      for (p = buffer, argc=0; argv[argc]; argc++)
-        p = stpcpy (p, argv[argc]);
-    }
-  return buffer;
-}
-
-
-char *
-strconcat (const char *s1, ...)
-{
-  va_list arg_ptr;
-  char *result;
-
-  if (!s1)
-    result = strdup ("");
-  else
-    {
-      va_start (arg_ptr, s1);
-      result = do_strconcat (s1, arg_ptr);
-      va_end (arg_ptr);
-    }
-  return result;
-}
-
 
 #ifndef DISABLE_DEBUG
 struct dbg {
@@ -786,7 +770,11 @@ void print_debug_usage(void)
 
 void parse_debug(char *foo)
 {
-    int i;
+#if defined(ENABLE_LFS)	
+    off64_t i;
+#else
+	 int i;
+#endif
     struct dbg *p;
 
     if (!foo)
@@ -835,4 +823,14 @@ void parse_debug(char *foo)
     fprintf(stderr, "After parse_debug, debug_level is: %d\n",
             debug_level);
 }
+#ifdef BOA_PHP_SUPPORT
+int isPhpReq(request * req)
+{
+	if(!req) return 0;
+	if(strstr(req->request_uri,".php"))
+		return 1;
+	return 0;
+}
+#endif
+
 #endif

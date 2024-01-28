@@ -27,7 +27,11 @@
 #include "boa.h"
 
 static void range_abort(request * req);
+#if defined(ENABLE_LFS)
+static void range_add(request * req, off64_t start, off64_t stop);
+#else
 static void range_add(request * req, unsigned long start, unsigned long stop);
+#endif
 static Range *range_pool = NULL;
 
 void ranges_reset(request * req)
@@ -86,14 +90,21 @@ static void range_abort(request * req)
     req->ranges = range_pool_pop();
     req->ranges->stop = -1;
 }
-
+#if defined(ENABLE_LFS)
+static void range_add(request * req, off64_t start, off64_t stop)
+#else
 static void range_add(request * req, unsigned long start, unsigned long stop)
+#endif
 {
     Range *prev;
     Range *r = range_pool_pop();
 
     DEBUG(DEBUG_RANGE) {
+    	#if defined(ENABLE_LFS)
+    	 fprintf(stderr, "range.c, range_add: got: %llu-%llu\n", start, stop);
+    	#else
         fprintf(stderr, "range.c, range_add: got: %lu-%lu\n", start, stop);
+        #endif
     }
 
     for(prev = req->ranges;prev;prev = prev->next) {
@@ -147,13 +158,22 @@ int ranges_fixup(request * req)
          * 5) start > stop && start != -1 :: invalid
          */
         DEBUG(DEBUG_RANGE) {
-            fprintf(stderr, "range.c: ranges_fixup: %lu - %lu\n", r->start, r->stop);
+        	#if defined(ENABLE_LFS)
+        	fprintf(stderr, "range.c: ranges_fixup: %llu-%llu\n", r->start, r->stop);
+        	#else
+        	fprintf(stderr, "range.c: ranges_fixup: %lu-%lu\n", r->start, r->stop);
+        	#endif
+            
         }
 
         /* no stop range specified or stop is too big.
          * RFC says it gets req->filesize - 1
          */
-        if (r->stop == (unsigned) -1 || r->stop >= req->filesize) {
+#if defined(ENABLE_LFS)         
+	if (r->stop == -1 || r->stop >= req->filesize) {
+#else
+	if (r->stop == (unsigned) -1 || r->stop >= req->filesize) {
+#endif        	
             /* r->start is *not* -1 */
             r->stop = req->filesize - 1;
         }
@@ -168,7 +188,11 @@ int ranges_fixup(request * req)
          * RFC says it gets filesize - stop.
          * Stop is already valid from a filesize point of view.
          */
+#if defined(ENABLE_LFS)
+	if (r->start == -1) {
+#else
         if ((long) r->start == -1) {
+#endif        	
             /* last N bytes of the entity body.
              * r->stop contains is N
              * due to the above test we are guaranteed
@@ -188,7 +212,11 @@ int ranges_fixup(request * req)
         /* since start <= stop and stop < filesize,
          * start < filesize
          */
-        if ((long) r->start < 0 || r->start > r->stop) {
+#if defined(ENABLE_LFS)         
+        if (r->start < 0 || r->start > r->stop) {
+#else
+	 if ((long) r->start < 0 || r->start > r->stop) {
+#endif        	
             Range *temp;
 
             temp = r;
@@ -200,13 +228,17 @@ int ranges_fixup(request * req)
                 fprintf(stderr, "start or end of range is invalid. skipping.\n");
             }
             continue;
-        }
+        }   
 
         /* r->stop and r->start are now both guaranteed < req->filesize */
         /* r->stop and r->start may be the same, however */
 
         DEBUG(DEBUG_RANGE) {
+        	#if defined(ENABLE_LFS)
+        	fprintf(stderr, "ending with start: %llu\tstop: %llu\n", r->start, r->stop);
+        	#else
             fprintf(stderr, "ending with start: %lu\tstop: %lu\n", r->start, r->stop);
+            #endif
         }
 
         if (prev == NULL)
@@ -277,7 +309,11 @@ int range_parse(request * req, const char *str)
 #define null 4
 #define other 5
         int ccode;
+#if defined(ENABLE_LFS)
+	off64_t start= 0, stop = 0;
+#else
         unsigned long start = 0, stop = 0;
+#endif
 
 #define ACTMASK1 (0xE0)
 #define PB  (0x20)              /* Push Beginning */
@@ -355,7 +391,12 @@ int range_parse(request * req, const char *str)
                 range_abort(req);
                 return 0;
             } else if ((fcode & ACTMASK2) == SR) {
-                if ((start == stop) && (start == (unsigned) -1)) {
+#if defined(ENABLE_LFS)
+		 if ((start == stop)&& (start == (off64_t) -1)){
+#else
+          if ((start == stop) && (start == (unsigned) -1)) {
+#endif
+                
                     /* neither was specified, or they were very big. */
                     log_error_doc(req);
                     log_error_time();

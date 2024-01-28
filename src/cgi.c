@@ -25,14 +25,25 @@
 
 #include "boa.h"
 
+#if !defined(BOA_CGI_SUPPORT)
+#define EXCLUDE_CGI //david
+#endif
+
+#ifndef EXCLUDE_CGI
 static char *env_gen_extra(const char *key, const char *value,
                            unsigned int extra);
 static void create_argv(request * req, char **aargv);
+#endif
+
+#ifndef SUPPORT_ASP
 static int complete_env(request * req);
+#endif
 
 int verbose_cgi_logs = 0;
 /* The +1 is for the the NULL in complete_env */
+#ifndef EXCLUDE_CGI
 static char **common_cgi_env = NULL;
+#endif
 short common_cgi_env_count = 0;
 
 /*
@@ -44,6 +55,7 @@ short common_cgi_env_count = 0;
 
 void create_common_env(void)
 {
+#ifndef EXCLUDE_CGI
     int i;
     common_cgi_env = calloc((COMMON_CGI_COUNT + 1),sizeof(char *));
     common_cgi_env_count = 0;
@@ -107,10 +119,12 @@ void create_common_env(void)
             exit(EXIT_FAILURE);
         }
     }
+#endif // !EXCLUDE_CGI
 }
 
 void add_to_common_env(char *key, char *value)
 {
+#ifndef EXCLUDE_CGI
     common_cgi_env = realloc(common_cgi_env, (common_cgi_env_count + 2) * (sizeof(char *)));
     if (common_cgi_env== NULL) {
         DIE("Unable to allocate memory for common CGI environment variable.");
@@ -128,10 +142,12 @@ void add_to_common_env(char *key, char *value)
     if (common_cgi_env_count > CGI_ENV_MAX) {
         DIE("far too many common CGI environment variables added.");
     }
+#endif // !EXCLUDE_CGI
 }
 
 void clear_common_env(void)
 {
+#ifndef EXCLUDE_CGI
     int i;
 
     for (i = 0; i <= COMMON_CGI_COUNT; ++i) {
@@ -140,8 +156,11 @@ void clear_common_env(void)
             common_cgi_env[i] = NULL;
         }
     }
+#endif
 }
 
+
+#ifndef EXCLUDE_CGI
 /*
  * Name: env_gen_extra
  *       (and via a not-so-tricky #define, env_gen)
@@ -173,6 +192,7 @@ static char *env_gen_extra(const char *key, const char *value,
     }
     return result;
 }
+#endif //!EXCLUDE_CGI
 
 /*
  * Name: add_cgi_env
@@ -184,6 +204,10 @@ static char *env_gen_extra(const char *key, const char *value,
 int add_cgi_env(request * req, const char *key, const char *value,
                 int http_prefix)
 {
+#ifdef EXCLUDE_CGI
+	return 1;
+
+#else
     char *p;
     unsigned int prefix_len;
 
@@ -212,6 +236,7 @@ int add_cgi_env(request * req, const char *key, const char *value,
             "variable \"%s%s=%s\" -- not enough space!\n",
             (prefix_len ? "HTTP_" : ""), key, value);
     return 0;
+#endif // EXCLUDE_CGI
 }
 
 #define my_add_cgi_env(req, key, value) { \
@@ -225,9 +250,13 @@ int add_cgi_env(request * req, const char *key, const char *value,
  * Description: adds the known client header env variables
  * and terminates the environment array
  */
-
+#ifdef SUPPORT_ASP
+int complete_env(request * req)
+#else
 static int complete_env(request * req)
+#endif
 {
+#ifndef EXCLUDE_CGI
     int i;
 
     for (i = 0; common_cgi_env[i]; i++)
@@ -255,6 +284,9 @@ static int complete_env(request * req)
     if (req->header_host)
         my_add_cgi_env(req, "HTTP_HOST", req->header_host);
     my_add_cgi_env(req, "SERVER_ADDR", req->local_ip_addr);
+#ifdef BOA_PHP_SUPPORT
+	my_add_cgi_env(req, "REDIRECT_STATUS","200");
+#endif
     my_add_cgi_env(req, "SERVER_PROTOCOL",
                    http_ver_string(req->http_version));
     my_add_cgi_env(req, "REQUEST_URI", req->request_uri);
@@ -298,6 +330,9 @@ static int complete_env(request * req)
     log_error_doc(req);
     fprintf(stderr, "Not enough space in CGI environment for remainder"
             " of variables.\n");
+
+#endif //!EXCLUDE_CGI
+
     return 0;
 }
 
@@ -307,14 +342,25 @@ static int complete_env(request * req)
  * Build argv list for a CGI script according to spec
  *
  */
-
+#ifndef EXCLUDE_CGI
 static void create_argv(request * req, char **aargv)
 {
     char *p, *q, *r;
     int aargc;
+	int aargvIndex=0;
 
     q = req->query_string;
-    aargv[0] = req->pathname;
+#ifdef BOA_PHP_SUPPORT
+	if(isPhpReq(req))
+	{		
+		aargv[aargvIndex++] = "/bin/php-cgi";		
+		aargv[aargvIndex++] = req->realPathName;
+		my_add_cgi_env(req, "SCRIPT_FILENAME", req->realPathName);
+	//	fprintf(stderr,"%s:%d %s %s \n",__FUNCTION__,__LINE__,aargv[0],aargv[1]);
+	}
+	else
+#endif
+		aargv[aargvIndex++] = req->pathname;
 
     /* here, we handle a special "indexed" query string.
      * Taken from the CGI/1.1 SPEC:
@@ -385,9 +431,10 @@ static void create_argv(request * req, char **aargv)
         }
         aargv[aargc] = NULL;
     } else {
-        aargv[1] = NULL;
+        aargv[aargvIndex] = NULL;
     }
 }
+#endif //!EXCLUDE_CGI
 
 /*
  * Name: init_cgi
@@ -404,12 +451,15 @@ static void create_argv(request * req, char **aargv)
 
 int init_cgi(request * req)
 {
+#ifndef EXCLUDE_CGI
     int child_pid;
     int pipes[2];
     int use_pipes = 0;
+#endif
 
     SQUASH_KA(req);
 
+#ifndef EXCLUDE_CGI
     if (req->cgi_type) {
         if (complete_env(req) == 0) {
             return 0;
@@ -418,11 +468,9 @@ int init_cgi(request * req)
     DEBUG(DEBUG_CGI_ENV) {
         int i;
         for (i = 0; i < req->cgi_env_index; ++i)
-          {
             log_error_time();
             fprintf(stderr, "%s - environment variable for cgi: \"%s\"\n",
                     __FILE__, req->cgi_env[i]);
-          }
     }
 
     /* we want to use pipes whenever it's a CGI or directory */
@@ -452,8 +500,8 @@ int init_cgi(request * req)
     case -1:
         /* fork unsuccessful */
         /* FIXME: There is a problem here. send_r_error (called by
-         * boa_perror) would work for NPH and CGI, but not for GUNZIP.
-         * Fix that.
+         * boa_perror) would work for NPH and CGI, but not for GUNZIP.  
+         * Fix that. 
          */
         boa_perror(req, "fork failed");
         if (use_pipes) {
@@ -543,69 +591,77 @@ int init_cgi(request * req)
         }
         /* tie post_data_fd to POST stdin */
         if (req->method == M_POST) { /* tie stdin to file */
+// davidhsu ----------------------
+#if !defined(NEW_POST) || defined(BOA_CGI_SUPPORT)
+		if (req->cgi_type == CGI || req->cgi_type == NPH) 
+		{
             lseek(req->post_data_fd, SEEK_SET, 0);
             dup2(req->post_data_fd, STDIN_FILENO);
             close(req->post_data_fd);
+		}
+#endif		
+//-------------------------------	
+			
         }
 
 #ifdef USE_SETRLIMIT
-        /* setrlimit stuff.
-         * This is neat!
-         * RLIMIT_STACK    max stack size
-         * RLIMIT_CORE     max core file size
-         * RLIMIT_RSS      max resident set size
-         * RLIMIT_NPROC    max number of processes
-         * RLIMIT_NOFILE   max number of open files
-         * RLIMIT_MEMLOCK  max locked-in-memory address space
-         * RLIMIT_AS       address space (virtual memory) limit
-         *
-         * RLIMIT_CPU      CPU time in seconds
-         * RLIMIT_DATA     max data size
-         *
-         * Currently, we only limit the CPU time and the DATA segment
-         * We also "nice" the process.
-         *
-         * This section of code adapted from patches sent in by Steve Thompson
-         * (no email available)
-         */
+	/* setrlimit stuff.
+	 * This is neat!
+	 * RLIMIT_STACK    max stack size
+	 * RLIMIT_CORE	   max core file size
+	 * RLIMIT_RSS	   max resident set size
+	 * RLIMIT_NPROC    max number of processes
+	 * RLIMIT_NOFILE   max number of open files
+	 * RLIMIT_MEMLOCK  max locked-in-memory address space
+	 * RLIMIT_AS	   address space (virtual memory) limit
+	 *
+	 * RLIMIT_CPU	   CPU time in seconds
+	 * RLIMIT_DATA	   max data size
+	 *
+	 * Currently, we only limit the CPU time and the DATA segment
+	 * We also "nice" the process.
+	 *
+	 * This section of code adapted from patches sent in by Steve Thompson
+	 * (no email available)
+	 */
 
-        {
-            struct rlimit rl;
-            int retval;
+	{
+		struct rlimit rl;
+		int retval;
 
-            if (cgi_rlimit_cpu) {
-                rl.rlim_cur = rl.rlim_max = cgi_rlimit_cpu;
-                retval = setrlimit(RLIMIT_CPU, &rl);
-                if (retval == -1) {
-                    log_error_time();
-                    fprintf(stderr,
-                            "setrlimit(RLIMIT_CPU,%d): %s\n",
-                            rlimit_cpu, strerror(errno));
-                    _exit(EXIT_FAILURE);
-                }
-            }
+		if (cgi_rlimit_cpu) {
+			rl.rlim_cur = rl.rlim_max = cgi_rlimit_cpu;
+			retval = setrlimit(RLIMIT_CPU, &rl);
+			if (retval == -1) {
+				log_error_time();
+				fprintf(stderr,
+						"setrlimit(RLIMIT_CPU,%d): %s\n",
+						rlimit_cpu, strerror(errno));
+				_exit(EXIT_FAILURE);
+			}
+		}
 
-            if (cgi_limit_data) {
-                rl.rlim_cur = rl.rlim_max = cgi_rlimit_data;
-                retval = setrlimit(RLIMIT_DATA, &rl);
-                if (retval == -1) {
-                    log_error_time();
-                    fprintf(stderr,
-                            "setrlimit(RLIMIT_DATA,%d): %s\n",
-                            rlimit_data, strerror(errno));
-                    _exit(EXIT_FAILURE);
-                }
-            }
+		if (cgi_limit_data) {
+			rl.rlim_cur = rl.rlim_max = cgi_rlimit_data;
+			retval = setrlimit(RLIMIT_DATA, &rl);
+			if (retval == -1) {
+				log_error_time();
+				fprintf(stderr,
+						"setrlimit(RLIMIT_DATA,%d): %s\n",
+						rlimit_data, strerror(errno));
+				_exit(EXIT_FAILURE);
+			}
+		}
 
-            if (cgi_nice) {
-                retval = nice(cgi_nice);
-                if (retval == -1) {
-                    log_error_time();
-                    perror("nice");
-                    _exit(EXIT_FAILURE);
-                }
-            }
-        }
+		if (cgi_nice) {
+			retval = nice(cgi_nice);
+			if (retval == -1) {
+				log_error_time();
+				perror("nice");
+				_exit(EXIT_FAILURE);
+			}
+		}
+	}
 #endif
 
         umask(cgi_umask);       /* change umask *again* u=rwx,g=rxw,o= */
@@ -624,9 +680,9 @@ int init_cgi(request * req)
         }
 
         if (req->cgi_type) {
-            char *aargv[CGI_ARGC_MAX + 1];
-            create_argv(req, aargv);
-            execve(req->pathname, aargv, req->cgi_env);
+            char *aargv[CGI_ARGC_MAX + 1];			
+            create_argv(req, aargv);			
+            execve(aargv[0], aargv, req->cgi_env);			
         } else {
             if (req->pathname[strlen(req->pathname) - 1] == '/')
                 execl(dirmaker, dirmaker, req->pathname, req->request_uri,
@@ -655,8 +711,29 @@ int init_cgi(request * req)
         }
 
         if (req->method == M_POST) {
-            close(req->post_data_fd); /* child closed it too */
-            req->post_data_fd = 0;
+
+// davidhsu ----------------
+#ifndef NEW_POST
+             close(req->post_data_fd); /* child closed it too */
+             req->post_data_fd = 0;
+#else	
+	 if (req->cgi_type == CGI || req->cgi_type == NPH) {
+#if !defined(NEW_POST) || defined(BOA_CGI_SUPPORT)
+             close(req->post_data_fd); /* child closed it too */
+             req->post_data_fd = 0;
+#endif			 
+	 }
+	 else {
+		if (req->post_data) {
+			free(req->post_data);
+			req->post_data = NULL;
+		}
+		req->post_data_len = 0;
+		req->post_data_idx = 0;
+	 }
+#endif		
+//------------------------
+
         }
 
         /* NPH, GUNZIP, etc... all go straight to the fd */
@@ -683,6 +760,7 @@ int init_cgi(request * req)
         req->filepos = 0;
         break;
     }
+#endif //!EXCLUDE_CGI
 
     return 1;
 }

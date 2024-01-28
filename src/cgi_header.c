@@ -58,6 +58,7 @@ int process_cgi_header(request * req)
 
     buf = req->header_line;
 
+	//fprintf(stderr,"header_line=%s\n",buf );
     c = strstr(buf, "\n\r\n");
     if (c == NULL) {
         c = strstr(buf, "\n\n");

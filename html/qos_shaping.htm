@@ -1,0 +1,766 @@
+<html>
+<! Copyright (c) Realtek Semiconductor Corp., 2003. All Rights Reserved. ->
+<head>
+<meta http-equiv="Content-Type" content="text/html">
+<% getIndex("no-cache"); %>
+<title>QoS</title>
+<style>
+.on {display:on}
+.off {display:none}
+</style>
+<SCRIPT language=Javascript src="<% getInfo("lang");%>"></SCRIPT>
+<script type="text/javascript" src="util_gw.js"> </script>
+<script type="text/javascript" src="util_qos.js"> </script>
+<% getInfo("include_css"); %>
+<script>
+
+var up_shaping = <%getIndex("up_shaping");%>;
+var down_shaping = <%getIndex("down_shaping");%>;
+var shaping_unit = 512;		// 512kbps
+
+var mac_shaping = <%getIndex("mac_shaping");%>;
+
+var car_number = <%getIndex("car_number");%>;
+var current_car_up_id = <%getIndex("current_car_up_id");%>;
+var current_car_down_id = <%getIndex("current_car_down_id");%>;
+var up_operation = <%getIndex("up_shaping_operation");%>;
+var down_operation = <%getIndex("down_shaping_operation");%>;
+
+var car_array_current_up_index = 0;
+var car_array_current_down_index = 0;
+
+/*	qos_up_car[i] = {"i", "carid", "shaping rate", "type start", "type end"}	*/
+var qos_up_car = new Array();
+var qos_down_car = new Array();
+
+var qos_up_car_mode = 0;
+var qos_down_car_mode = 0;
+<%getQosUpCar();%>
+
+function check_array_index()
+{
+	for(var i = 0; i < car_number; i++){
+		if(qos_up_car[i] && (qos_up_car[i][0] == current_car_up_id)){
+			car_array_current_up_index = i;
+			break;
+		}
+	}
+	for(var i = 0; i < car_number; i++){
+		if(qos_down_car[i] && (qos_down_car[i][0] == current_car_down_id)){
+			car_array_current_down_index = i;
+			break;
+		}
+	}
+}
+
+function carId_submit(id, flag)
+{
+	if(flag == 1){
+		document.forms.formQosAdd.current_carUpId.value = id;
+	}
+	else{
+		document.forms.formQosAdd.current_carDownId.value = id;
+	}
+}
+
+function edit_car(id, flag)
+{
+	// 1: edit car
+	if(flag == 1){
+		document.forms.formQosAdd.car_up_op.value = 1;
+		document.forms.formQosAdd.current_carUpId.value = id;
+	}
+	else{
+		document.forms.formQosAdd.car_down_op.value = 1;
+		document.forms.formQosAdd.current_carDownId.value = id;
+	}
+}
+
+function show_car_list(flag)
+{
+	if(flag == 1){
+		for(var i = 0; i < car_number; i++){
+			if(qos_up_car[i]){
+				if(qos_up_car_mode == 3){
+					document.write("<tr><td align=center width=''><font size='2'><b>"+ qos_up_car[i][3]+ "-"+ qos_up_car[i][4] +"</b></font></td>");
+				}
+				else{
+					document.write("<tr><td align=center width=''><font size='2'><b>"+ qos_up_car[i][3]+ "</b></font></td>");
+				}
+
+				document.write("<td align=center width=''><font size='2'><b>"+ qos_up_car[i][2]+ "</b></font></td>");
+				document.write("<td align=center width=''><button name='EditUpCar' value='EditUpCar' onclick='edit_car("+qos_up_car[i][0]+", 1);'>编辑</button></td>");
+				document.write("<td align=center width=''><button name='DelUpCar' value='DelUpCar' onclick='carId_submit("+qos_up_car[i][0]+", 1);'>删除</button></td></tr>");
+			}
+		}
+	}
+	else{
+		for(var i = 0; i < car_number; i++){
+			if(qos_down_car[i]){
+				if(qos_down_car_mode == 3){
+					document.write("<tr><td align=center width=''><font size='2'><b>"+ qos_down_car[i][3]+ "-"+ qos_down_car[i][4] +"</b></font></td>");
+				}
+				else{
+					document.write("<tr><td align=center width=''><font size='2'><b>"+ qos_down_car[i][3]+ "</b></font></td>");
+				}
+
+				document.write("<td align=center width=''><font size='2'><b>"+ qos_down_car[i][2]+ "</b></font></td>");
+				document.write("<td align=center width=''><button name='EditDownCar' value='EditDownCar' onclick='edit_car("+qos_down_car[i][0]+", 0);'>编辑</button></td>");
+				document.write("<td align=center width=''><button name='DelDownCar' value='DelDownCar' onclick='carId_submit("+qos_down_car[i][0]+", 0);'>删除</button></td></tr>");
+			}
+		}
+	}
+}
+
+function addRuleClick()
+{
+	if(qos_up_car_mode > 0 || qos_down_car_mode > 0){
+		if(qos_up_car_mode && up_shaping && document.formQosAdd.up_rate && document.formQosAdd.up_rate.value * shaping_unit > up_shaping){
+			alert("上行限速值超过最大带宽"+up_shaping);
+			return false;
+		}
+
+		if(qos_down_car_mode && down_shaping && document.formQosAdd.down_rate && document.formQosAdd.down_rate.value * shaping_unit > down_shaping){
+			alert("下行限速值超过最大带宽"+down_shaping);
+			return false;
+		}
+	
+		if(qos_up_car_mode == 1 || qos_down_car_mode == 1){
+			// do not check LAN/SSID, for SSID random
+		}
+
+		if(qos_up_car_mode == 2 || qos_down_car_mode == 2){
+			if(qos_up_car_mode == 2 && document.formQosAdd.type && (document.formQosAdd.type.value > 4095 || document.formQosAdd.type.value < 1)){
+				alert("VLAN ID 应该在1到4095之间！");
+				return false;
+			}
+
+			if(qos_down_car_mode == 2 && document.formQosAdd.down_type && (document.formQosAdd.down_type.value > 4095 || document.formQosAdd.down_type.value < 1)){
+				alert("VLAN ID 应该在1到4095之间！");
+				return false;
+			}
+		}
+
+		if(qos_up_car_mode == 3 || qos_down_car_mode == 3){
+			var LAN_IP = ipv4_to_unsigned_integer("<% getInfo("ip"); %>");
+			var LAN_MASK = ipv4_to_unsigned_integer("<% getInfo("mask"); %>");
+			var tarIpStart, tarIpEnd;
+
+			if(qos_up_car_mode == 3 && document.formQosAdd.type && document.formQosAdd.type2){
+				tarIpStart = ipv4_to_unsigned_integer(document.formQosAdd.type.value);
+				tarIpEnd = ipv4_to_unsigned_integer(document.formQosAdd.type2.value);
+				if ((tarIpStart & LAN_MASK) != (LAN_IP & LAN_MASK)){
+					alert("上行第一个IPv4地址不合法! 不在LAN侧网段");
+					document.formQosAdd.type.focus();
+					return false;
+				}
+
+				if ((tarIpEnd & LAN_MASK) != (LAN_IP & LAN_MASK)){
+					alert("上行第二个IPv4地址不合法! 不在LAN侧网段");
+					document.formQosAdd.type2.focus();
+					return false;
+				}
+
+				if(tarIpStart > tarIpEnd){
+					alert("上行第一个IPv4地址应当不大于第二个IPv4地址!");
+					document.formQosAdd.type.focus();
+					return false;
+				}
+					
+				if(document.formQosAdd.type.value && (checkIpAddr(document.formQosAdd.type, '上行第一个IPv4地址不合法: ') == false)){
+					return false;
+				}
+			
+				if(document.formQosAdd.type2.value &&(checkIpAddr(document.formQosAdd.type2, '上行第二个IPv4地址不合法: ') == false)){
+					return false;
+				}
+			}
+
+			if(qos_down_car_mode == 3 && document.formQosAdd.down_type && document.formQosAdd.down_type2){
+				tarIpStart = ipv4_to_unsigned_integer(document.formQosAdd.down_type.value);
+				tarIpEnd = ipv4_to_unsigned_integer(document.formQosAdd.down_type2.value);
+				if ((tarIpStart & LAN_MASK) != (LAN_IP & LAN_MASK)){
+					alert("下行第一个IPv4地址不合法! 不在LAN侧网段");
+					document.formQosAdd.down_type.focus();
+					return false;
+				}
+
+				if ((tarIpEnd & LAN_MASK) != (LAN_IP & LAN_MASK)){
+					alert("下行第二个IPv4地址不合法! 不在LAN侧网段");
+					document.formQosAdd.down_type2.focus();
+					return false;
+				}
+
+				if(tarIpStart > tarIpEnd){
+					alert("下行第一个IPv4地址应当不大于第二个IPv4地址!");
+					document.formQosAdd.down_type.focus();
+					return false;
+				}
+					
+				if(document.formQosAdd.down_type.value && (checkIpAddr(document.formQosAdd.down_type, '下行第一个IPv4地址不合法: ') == false)){
+					return false;
+				}
+			
+				if(document.formQosAdd.down_type2.value &&(checkIpAddr(document.formQosAdd.down_type2, '下行第二个IPv4地址不合法: ') == false)){
+					return false;
+				}
+			}
+		}
+
+		if(mac_shaping && (qos_up_car_mode == 4 || qos_down_car_mode == 4)){
+			if(qos_up_car_mode == 4 && document.formQosAdd.type){
+				if(document.formQosAdd.type.value.length < 17){
+					alert("无效的MAC地址。应为XX:XX:XX:XX:XX:XX");
+					document.formQosAdd.type.focus();
+					return false;
+				}
+
+				if(!checkMacAddrString(document.formQosAdd.type)){
+					document.formQosAdd.type.focus();
+					return false;
+				}
+			}
+
+			if(qos_down_car_mode == 4 && document.formQosAdd.down_type){
+				if(document.formQosAdd.down_type.value.length < 17){
+					alert("无效的MAC地址。应为XX:XX:XX:XX:XX:XX");
+					document.formQosAdd.down_type.focus();
+					return false;
+				}
+
+				if(!checkMacAddrString(document.formQosAdd.down_type)){
+					document.formQosAdd.down_type.focus();
+					return false;
+				}
+			}
+		}
+	}
+	
+	return true;
+}
+
+function upShaingSelection()
+{
+/*  remove vlan qos
+	document.formQosAdd.up_shaping.selectedIndex = qos_up_car_mode;
+	document.formQosAdd.down_shaping.selectedIndex = qos_down_car_mode;
+*/
+	document.formQosAdd.up_shaping.selectedIndex = qos_up_car_mode>2 ? qos_up_car_mode-1 : qos_up_car_mode;
+	document.formQosAdd.down_shaping.selectedIndex = qos_down_car_mode>2 ? qos_down_car_mode-1 : qos_down_car_mode;
+}
+
+function updateQosState()
+{
+	show_div(0,"up_iface");
+	show_div(0,"up_vlan");
+	show_div(0,"up_ip");
+	show_div(0,"up_edit_car");
+	
+	show_div(0,"down_iface");
+	show_div(0,"down_vlan");
+	show_div(0,"down_ip");
+	show_div(0,"down_edit_car");
+
+	if(mac_shaping){
+		show_div(0,"up_mac");
+		show_div(0,"down_mac");
+	}
+
+	if(<% getIndex("qosEnable"); %>){
+	//if(document.formQosAdd.enable.checked == true){
+		enableTextField(document.formQosAdd.up_shaping);
+		enableTextField(document.formQosAdd.down_shaping);
+
+		if(qos_up_car_mode == 1){
+			show_div(1,"up_iface");
+		}
+		else if(qos_up_car_mode == 2){
+			show_div(1,"up_vlan");
+		}
+		else if(qos_up_car_mode == 3){
+			show_div(1,"up_ip");
+		}
+		else if(mac_shaping && qos_up_car_mode == 4){
+			show_div(1,"up_mac");
+		}
+
+		if(up_operation){
+			show_div(1,"up_edit_car");
+		}
+
+		if(qos_down_car_mode == 1){
+			show_div(1,"down_iface");
+		}
+		else if(qos_down_car_mode == 2){
+			show_div(1,"down_vlan");
+		}
+		else if(qos_down_car_mode == 3){
+			show_div(1,"down_ip");
+		}
+		else if(mac_shaping && qos_down_car_mode == 4){
+			show_div(1,"down_mac");
+		}
+
+		if(down_operation){
+			show_div(1,"down_edit_car");
+		}
+	}
+	else{
+		disableTextField(document.formQosAdd.up_shaping);
+		disableTextField(document.formQosAdd.down_shaping);
+	}
+}
+
+function edit_car_tbl(flag)
+{
+	if(flag && up_operation == 1){
+		if(qos_up_car_mode == 1)
+		{
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>LAN/SSID</b></font></td>");
+			
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	/*	remove lan vlan id qos
+		else if(qos_up_car_mode == 2){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>VLAN ID</b></font></td>");
+			
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	*/
+		else if(qos_up_car_mode == 3){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>IP范围</b></font></td>");
+			
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][3]+"'> - <input type=‘text’ name='type2' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][4]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+		else if(mac_shaping && qos_up_car_mode == 4){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>MAC地址</b></font></td>");
+			
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='17' maxlength='17' value='"+qos_up_car[car_array_current_up_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='type' size='17' maxlength='17'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_up_car[car_array_current_up_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32' value='"+qos_up_car[car_array_current_up_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='up_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	}
+
+	if(flag == 0 && down_operation == 1){
+		if(qos_down_car_mode == 1)
+		{
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>LAN/SSID</b></font></td>");
+			
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='16' maxlength='32' value='"+qos_down_car[car_array_current_down_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='16' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32' value='"+qos_down_car[car_array_current_down_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	/*	remove lan vlan id qos
+		else if(qos_down_car_mode == 2){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>VLAN ID</b></font></td>");
+			
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='16' maxlength='32' value='"+qos_down_car[car_array_current_down_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='16' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32' value='"+qos_down_car[car_array_current_down_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	*/
+		else if(qos_down_car_mode == 3){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>IP范围</b></font></td>");
+			
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='32' maxlength='32' value='"+qos_down_car[car_array_current_down_index][3]+"'> - <input type=‘text’ name='down_type2' size='16' maxlength='16' value='"+qos_down_car[car_array_current_down_index][4]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32' value='"+qos_down_car[car_array_current_down_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+		else if(mac_shaping && qos_down_car_mode == 4){
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>MAC地址</b></font></td>");
+			
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='17' maxlength='17' value='"+qos_down_car[car_array_current_down_index][3]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_type' size='17' maxlength='17'></font></td>");
+			}
+			document.write("</tr>");
+			
+			document.write("<tr>");
+			document.write("<td width=''><font size='2'><b>限速值</b></font></td>");
+			if(qos_down_car[car_array_current_down_index]){
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32' value='"+qos_down_car[car_array_current_down_index][2]+"'></font></td>");
+			}
+			else{
+				document.write("<td width=''><font size='2'><input type=‘text’ name='down_rate' size='32' maxlength='32'></font></td>");
+			}
+			document.write("</tr>");
+		}
+	}
+}
+
+function shaping_change()
+{
+	if(qos_up_car_mode == 0 && qos_down_car_mode == 0 && 
+	(document.formQosAdd.up_shaping.value != 0 || document.formQosAdd.down_shaping.value != 0)){
+		alert("SP/WFQ调度将被关闭！");
+	}
+
+	document.formQosAdd.submit();
+}
+
+function Load_Setting()
+{
+	//if(<% getIndex("qosEnable"); %>)
+		//document.formQosAdd.enable.checked = true;
+
+	upShaingSelection();
+	updateQosState();
+}
+</script>
+</head>
+
+<body onload="Load_Setting();">
+<blockquote>
+<h2><script>dw(shaping_header)</script></h2>
+
+<form action=/boafrm/formShapingQoS method=POST name="formQosAdd">
+<INPUT type="hidden" name="lan_mask" value="<% getInfo("mask-rom"); %>">
+<input type="hidden" value="/qos_shaping.htm" name="submit-url">
+<input type='hidden' name='current_carUpId'>
+<input type='hidden' name='car_up_op'>
+<input type='hidden' name='current_carDownId'>
+<input type='hidden' name='car_down_op'>
+<script> check_array_index();</script>
+
+<table border=0 width="600">
+<tr><font size=2>
+    <script>dw(shaping_header_explain)</script>
+</tr>
+<!--
+<tr>
+  	<td width="30%"><br><font size=2><b>启用QoS</b></font><br></td>
+  	<td><br><input type="checkbox" name="enable" value="ON" ONCLICK=updateQosState()></b></font><br></td>
+</tr>
+-->
+</table>
+
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tr>
+    <td width="30%"><font size=2><b>上行限速模式</b></font></td>
+	<td>
+		<select style="width:200px"  size="1" name="up_shaping" onchange=shaping_change()>
+		<option value="0">关闭</option>
+		<option value="1">基于用户接口限速</option>
+		<!-- <option value="2">基于用户侧VLAN限速</option> -->
+		<option value="3">基于用户侧IP地址段限速</option>
+	<% getInfo("mac_shaping_start");%>
+		<option value="4">基于用户侧MAC地址</option>
+	<% getInfo("mac_shaping_end");%>
+		</select></font>
+	</td>
+</tr>
+</table>
+
+<span id = "up_iface" class = "off" > 
+<table border=0 width=600>
+<tr><td><button name="AddUpCar" value="AddUpCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;LAN/SSID&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(1)</script>
+</tbody>
+</table>
+</span>
+
+		
+<span id = "up_vlan" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddUpCar" value="AddUpCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;VLAN ID&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(1)</script>
+</tbody>
+</table>
+</span>
+
+
+<span id = "up_ip" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddUpCar" value="AddUpCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;IP范围&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(1)</script>
+</tbody>
+</table>
+</span>
+
+
+<% getInfo("mac_shaping_start");%>
+<span id = "up_mac" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddUpCar" value="AddUpCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;MAC地址&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(1)</script>
+</tbody>
+</table>
+</span>
+<% getInfo("mac_shaping_end");%>
+
+<span id = "up_edit_car" class = "off" >
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<script> edit_car_tbl(1)</script>
+</table>
+</span>
+
+
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tr>
+    <td width="30%"><font size=2><b>下行限速模式</b></font></td>
+	<td>
+		<select style="width:200px"  size="1" name="down_shaping" onchange=shaping_change()>
+		<option value="0">关闭</option>
+		<option value="1">基于用户接口限速</option>
+		<!-- <option value="2">基于用户侧VLAN限速</option> -->
+		<option value="3">基于用户侧IP地址段限速</option>
+	<% getInfo("mac_shaping_start");%>
+		<option value="4">基于用户侧MAC地址</option>
+	<% getInfo("mac_shaping_end");%>
+		</select></font>
+	</td>
+</tr>
+</table>
+
+<span id = "down_iface" class = "off" > 
+<table border=0 width=600>
+<tr><td><button name="AddDownCar" value="AddDownCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;LAN/SSID&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(0)</script>
+</tbody>
+</table>
+</span>
+
+		
+<span id = "down_vlan" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddDownCar" value="AddDownCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;VLAN ID&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(0)</script>
+</tbody>
+</table>
+</span>
+
+
+<span id = "down_ip" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddDownCar" value="AddDownCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;IP范围&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(0)</script>
+</tbody>
+</table>
+</span>
+
+<% getInfo("mac_shaping_start");%>
+<span id = "down_mac" class = "off" >
+<table border=0 width=600>
+<tr><td><button name="AddDownCar" value="AddDownCar">添加规则</button><br><br></td></tr>
+</table>
+<table class="tblList" border=1 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tbody>
+<tr>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;MAC地址&nbsp;</b></font></td>
+	<td class='table_title' align=center width='30%'><font size='2'><b>&nbsp;限速值(单位：512Kbps)&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;修改&nbsp;</b></font></td>
+	<td class='table_title' align=center width='15%'><font size='2'><b>&nbsp;删除&nbsp;</b></font></td>
+</tr>
+<script> show_car_list(0)</script>
+</tbody>
+</table>
+</span>
+<% getInfo("mac_shaping_end");%>
+
+<span id = "down_edit_car" class = "off" >
+<table border=0 width="600">
+<tr><hr size=1 noshade align=top><br><br></tr>
+<script> edit_car_tbl(0)</script>
+</table>
+</span>
+
+
+<table border=0 width=220>
+<tr><hr size=1 noshade align=top><br><br></tr>
+<tr>
+	<td><input type="submit" value="确定" name="save_apply" onClick="return addRuleClick()"></td>
+</tr>
+</table>
+</form> 
+
+</blockquote>
+</body>
+</html>

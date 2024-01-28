@@ -25,9 +25,18 @@
 #include "boa.h"
 #include "access.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#ifdef BOA_WITH_OPENSSL
+#include <openssl/ssl.h>
+#endif
+
+#ifdef SUPPORT_ASP
+	#include "asp_page.h"
+#endif
+
+#ifdef SUPER_NAME_SUPPORT
+extern int getHtmlReadAuth(char *name, int login_level);
+extern int getHtmlWriteAuth(char *reference, int login_level);
+#endif
 
 #define STR(s) __STR(s)
 #define __STR(s) #s
@@ -42,6 +51,370 @@
 /* local prototypes */
 static int get_cachedir_file(request * req, struct stat *statbuf);
 static int index_directory(request * req, char *dest_filename);
+int middle_segment=0; //Brad add for update content length
+
+
+// davidhsu ---------------------------------------
+#include <string.h>
+#include "apform.h"
+
+#ifdef SUPPORT_ASP
+extern int allocNewBuffer(request *req);
+extern int is_valid_user(request *wp);
+extern void handleForm(request *req);
+extern void handleScript(request *req,char *left1,char *right1);
+extern void nls_convert(unsigned char * buffer, unsigned char * table, long count);
+extern int isSetGetToggle;
+#endif
+//--------------------------------------------
+
+
+#ifdef SUPPORT_ASP
+int init_form(request * req)
+{
+#ifndef NEW_POST
+	struct stat statbuf;
+#endif
+	SQUASH_KA(req);
+	complete_env(req);
+
+// davidhsu --------------------------------
+#ifndef NEW_POST
+	fstat(req->post_data_fd, &statbuf);
+	if (req->method == M_POST)
+	{
+//		char *buf;
+//		buf=(char *)malloc(statbuf.st_size+1);
+//		lseek(req->post_data_fd, SEEK_SET, 0);
+		lseek(req->post_data_fd, SEEK_END, 0);
+//		read(req->post_data_fd,buf,statbuf.st_size);
+//		buf[statbuf.st_size]=0;
+//		free(buf);	
+	}
+#else
+	if (req->method == M_POST)
+		req->post_data_idx = req->post_data_len;		
+#endif	
+//-------------------------------------
+	
+#ifdef SUPER_NAME_SUPPORT
+//Post permission
+	int write_auth;
+	write_auth = getHtmlWriteAuth(req->header_referer, req->auth_flag);
+	if(write_auth == 0){
+		send_r_forbidden(req);
+		return 0;
+	}else if(write_auth == -1){
+		printf("===(%s:%d) Invalid reference in Post request header ===\n",__FILE__,__LINE__);
+		return 0;
+	}
+#endif
+
+//	req->status = CLOSE;		
+	handleForm(req);
+#if 0
+	if(memcmp(req->buffer,"HTTP/1.0 301",12)==0) 		
+	{
+		return 0;
+	}
+#endif	
+// davidhsu
+//	return 1;
+return 0;
+}
+
+int init_get2(request * req)
+{
+	int data_fd;
+	//Brad add begin for update content length
+	char *content_length_orig1;
+	char *content_length_orig2;
+	int orig_char_length=0;
+	int exact_char_length=0;
+	int byte_shift=0;
+	int exact_size=0;
+	int total_length_shift=0;
+	char *exact_content=NULL;
+	int head_offset=0;
+	int first_offset=0;
+	int antecedent_segment=0;
+	int subsequent_segment=0;
+	//Brad add end for update content length
+#ifdef GUNZIP
+	char buf[MAX_PATH_LENGTH];
+#endif
+	struct stat statbuf;
+	SQUASH_KA(req);
+
+	complete_env(req);
+
+#if defined(CONFIG_APP_FWD)
+{ /* if countDownPage.htm had been sent to browser, don't allow browser to get other page(br0 down) */
+	extern int isCountDown;
+	extern int isFWUPGRADE;
+	if (isFWUPGRADE == 2) {
+		if (strstr(req->pathname, "countDownPage.htm")) {
+			isCountDown = 1;
+		}
+		else if (isCountDown == 1) {
+			isCountDown = 2;
+			system("ifconfig br0 down");
+			sleep(1);
+		}
+	}
+}
+#endif
+
+	middle_segment=0;
+
+	//fprintf(stderr, "###[%s %s %d] req->request_uri= %s, req->pathname=%s###\n", __FILE__,__FUNCTION__, __LINE__, req->request_uri,req->pathname);
+
+#ifdef SUPER_NAME_SUPPORT
+	//read permission
+	if(*(req->request_uri) == '/'){
+		if( !getHtmlReadAuth(req->request_uri+1, req->auth_flag)){
+			send_r_forbidden(req);
+			return 0;
+		}
+	}	
+#endif
+
+	req->cgi_env[req->cgi_env_index] = NULL;     /* terminate cgi env */
+	if ((strstr(req->request_uri,".htm")==NULL) &&
+	    (strstr(req->request_uri,".asp")==NULL) &&  
+	    (strstr(req->request_uri,"navigation.js")==NULL)) {
+			return 1;
+	}
+
+	data_fd = open(req->pathname, O_RDONLY);
+	if (data_fd == -1) {		/* cannot open */
+#ifdef GUNZIP
+		sprintf(buf, "%s.gz", req->pathname);
+		data_fd = open(buf, O_RDONLY);
+		if (data_fd == -1) {
+#endif
+			int errno_save = errno;
+			log_error_doc(req);
+			errno = errno_save;
+#if 0
+			perror("document open");
+#endif
+//			syslog(LOG_ERR, "Error opening %s for %s: %s\n", req->pathname,
+//					req->remote_ip_addr, strerror(errno_save));
+			errno = errno_save;
+
+			if (errno == ENOENT)
+				send_r_not_found(req);
+			else if (errno == EACCES)
+				send_r_forbidden(req);
+			else
+				send_r_bad_request(req);
+			return 0;
+#ifdef GUNZIP
+		}
+		close(data_fd);
+
+		req->response_status = R_REQUEST_OK;
+		if (!req->simple) {			
+			req_write(req, "HTTP/1.0 200 OK-GUNZIP\r\n");
+			print_http_headers(req);
+			print_content_type(req);
+			print_last_modified(req);
+			req_write(req, "\r\n");
+			req_flush(req);
+		}
+		if (req->method == M_HEAD)
+			return 0;
+		if (req->pathname)
+			free(req->pathname);
+		req->pathname = strdup(buf);
+		return init_cgi(req);	/* 1 - OK, 2 - die */
+#endif
+	}
+	fstat(data_fd, &statbuf);
+	if (S_ISDIR(statbuf.st_mode)) {
+		close(data_fd);			/* close dir */
+
+		if (req->pathname[strlen(req->pathname) - 1] != '/') {
+			char buffer[3 * MAX_PATH_LENGTH + 128];
+
+			if (server_port != 80)
+				sprintf(buffer, "http://%s:%d%s/", req->host?req->host:server_name, server_port,
+						req->request_uri);
+			else
+				sprintf(buffer, "http://%s%s/", req->host?req->host:server_name, req->request_uri);
+
+			send_redirect_perm(req, buffer);
+
+			return 0;
+		}
+		data_fd = get_dir(req, &statbuf);	/* updates statbuf */
+
+		if (data_fd == -1) {		/* couldn't do it */
+			return 0;			/* errors reported by get_dir */
+		}
+		else if (data_fd == 0) {
+			return 1;
+		}
+	}
+
+//start modify here : tony
+#if 0	
+	if (req->if_modified_since &&
+		!modified_since(&(statbuf.st_mtime), req->if_modified_since)) {
+		send_r_not_modified(req);
+		close(data_fd);
+		return 0;
+	}
+#endif
+
+
+	req->filesize = statbuf.st_size;
+//	req->last_modified = statbuf.st_mtime;
+
+	if (req->method == M_HEAD) {
+		send_r_request_ok(req);
+		close(data_fd);
+		return 0;
+	}
+	/* MAP_OPTIONS: see compat.h */
+	req->data_mem = mmap(0, req->filesize, 
+#ifdef USE_NLS			
+			PROT_READ|PROT_WRITE
+#else
+			PROT_READ
+#endif
+			, MAP_OPTIONS,data_fd, 0);
+
+	close(data_fd);				/* close data file */
+
+	if ((long) req->data_mem == -1) {
+		boa_perror(req, "mmap");
+		return 0;
+	}
+	
+	send_r_request_ok(req);		/* All's well */
+
+	{
+		//parse and send asp page
+		char *left,*right,*last_right=req->data_mem;
+		int bob;
+		first_offset=req->buffer_end;     //Brad add for update content length
+		while (1) {
+			left=strstr(last_right,"<%");
+			if (left!=NULL)
+				right=strstr(left,"%>");
+
+			if ((left!=NULL) && (right!=NULL)) {
+				bob=(unsigned int)left-(unsigned int)last_right;
+#ifdef SUPPORT_ASP
+				while((bob+req->buffer_end+10)>(req->max_buffer_size)) {    //Brad modify
+					int ret;
+					ret=allocNewBuffer(req);	
+					if (ret==-1) {
+						bob=req->max_buffer_size- req->buffer_end;
+						printf("will break\n");
+						break;
+					}
+				}
+#endif
+				antecedent_segment =antecedent_segment+bob;		//Brad add for update content length
+				if (bob>=0) {
+					memcpy(req->buffer + req->buffer_end, req->data_mem + req->filepos, bob);
+					last_right=right+2;
+					req->buffer_end += bob;
+					req->filepos += (bob+(unsigned int)last_right-(unsigned int)left);
+					handleScript(req,left,right);
+				}
+			}
+			else {
+				bob=(unsigned int)req->data_mem+req->filesize-(unsigned int)last_right;
+#ifdef SUPPORT_ASP
+				while((bob+req->buffer_end+10)>req->max_buffer_size) {  //Brad modify
+					int ret;
+					ret=allocNewBuffer(req);
+					if (ret==-1) {
+						bob=req->max_buffer_size- req->buffer_end;
+						break;
+					}
+				}
+#endif				
+				subsequent_segment = subsequent_segment+bob;    //Brad add for update content length
+				if (bob > 0) {
+					memcpy(req->buffer + req->buffer_end, req->data_mem + req->filepos, bob);
+					req->buffer_end += bob;
+					req->filepos += bob;
+				}
+				break;
+			}
+		}
+	}
+//Brad add begin for update content length
+	exact_content = req->buffer+first_offset;
+	exact_size = antecedent_segment+middle_segment+subsequent_segment;
+	//fprintf(stderr, "the exact total length of asp file=%d\n", exact_size);
+	
+	content_length_orig1 = strstr(req->buffer, "Content-Length:");
+	content_length_orig2 = strstr(content_length_orig1, "\r\n");
+	content_length_orig1 = content_length_orig1 + strlen("Content-Length: ");
+	orig_char_length = content_length_orig2 - content_length_orig1;
+	//fprintf(stderr, "the orig_char_length=%d\n", orig_char_length);
+	exact_char_length = strlen(simple_itoa(exact_size));
+	//fprintf(stderr, "the exact_char_length=%d\n", exact_char_length);
+	if(orig_char_length == exact_char_length) {
+		//fprintf(stderr, "Update the content length with the same char length!\n");
+		memcpy(content_length_orig1, simple_itoa(exact_size),exact_char_length); 
+	}else if(orig_char_length < exact_char_length) {
+		//fprintf(stderr, " Update the content length with shift to later bytes!\n");
+		byte_shift = exact_char_length - orig_char_length;
+		head_offset = first_offset- (content_length_orig2 - req->buffer);
+		total_length_shift = head_offset+exact_size;
+		memmove((content_length_orig2+byte_shift), content_length_orig2, total_length_shift);
+		memcpy(content_length_orig1, simple_itoa(exact_size),exact_char_length); 
+		req->buffer_end = req->buffer_end+byte_shift; 
+	}else {
+		//fprintf(stderr, "Update the content length with shift to preceding bytes!\n");
+		byte_shift = orig_char_length - exact_char_length;
+		head_offset = first_offset- (content_length_orig2 - req->buffer);
+		total_length_shift = head_offset+exact_size;
+		memmove((content_length_orig2-byte_shift), content_length_orig2, total_length_shift);
+		memcpy(content_length_orig1, simple_itoa(exact_size),exact_char_length); 
+		req->buffer_end = req->buffer_end-byte_shift;  
+	}
+	
+#ifdef CSRF_SECURITY_PATCH
+	{
+		char *last = content_length_orig1;
+		char *nextp, char_save;
+		extern void log_boaform(char *form, request *req);	
+		while (1) {		
+			nextp = strstr(last, "boafrm/");
+			if (nextp) {			
+				last = nextp + 7;
+				nextp = last;
+				while (*nextp && !isspace(*nextp) && (*nextp!='"'))
+					nextp++;	
+				char_save = *nextp;
+				*nextp = '\0';
+				log_boaform(last, req);						
+				*nextp = char_save;	
+			}
+			else
+				break;
+		}
+	}
+#endif
+	
+//Brad add end for update content length
+	if (req->filepos == req->filesize) {
+//		req->status = CLOSE;
+		return 0; /* done! */
+	}
+
+	/* We lose statbuf here, so make sure response has been sent */
+	return 1;
+}
+#endif	// SUPPORT_ASP
 
 /*
  * Name: init_get
@@ -56,42 +429,35 @@ int init_get(request * req)
 {
     int data_fd, saved_errno;
     struct stat statbuf;
-    volatile off_t bytes_free;
+    volatile unsigned int bytes_free;
 
-    data_fd = open(req->pathname, O_RDONLY|O_LARGEFILE);
+//fprintf(stderr, "###[%s %d] req->pathname=%s###\n", __FUNCTION__, __LINE__, req->pathname);
+//fprintf(stderr, "###[%s %d] req->client_stream=%s###\n", __FUNCTION__, __LINE__, req->client_stream);
+//fprintf(stderr, "###[%s %d] req->logline=%s###\n", __FUNCTION__, __LINE__, req->logline);
+//fprintf(stderr, "###[%s %d] req->request_uri=%s###\n", __FUNCTION__, __LINE__, req->request_uri);
+//fprintf(stderr, "###[%s %d] req->host=%s###\n", __FUNCTION__, __LINE__, req->host);
+
+	/* A special GET request: "GET /boaform/formWlanRedirect?redirect-url=wlbasic.htm&wlan_id=0 HTTP/1.1" */
+	if (strstr(req->request_uri, "formWlanRedirect")) {
+		char *redirectUrl, *strWlanId, *ptr;
+		extern void formWlanRedirect2(request *wp, char *redirectUrl, char *strWlanId);
+		if ((ptr = strstr(req->client_stream, "redirect-url="))) {
+			redirectUrl = ptr + strlen("redirect-url=");
+			if ((ptr = strstr(redirectUrl, "&wlan_id="))) {
+				*ptr = '\0';
+				strWlanId = ptr + strlen("&wlan_id=");
+				if ((ptr = strstr(strWlanId, " HTTP"))) {
+					*ptr = '\0';
+					//fprintf(stderr, "###[%s %d] redirectUrl=%s strWlanId=%s###\n", __FUNCTION__, __LINE__, redirectUrl, strWlanId);
+					formWlanRedirect2(req, redirectUrl, strWlanId);
+					return 0;
+				}
+			}
+		}
+	}
+
+    data_fd = open(req->pathname, O_RDONLY);
     saved_errno = errno;        /* might not get used */
-
-    while (use_lang_rewrite && data_fd == -1 && errno == ENOENT) {
-         /* We cannot open that file - Check whether we can rewrite it
-          * to a different language suffix.  We only support filenames
-          * of the format: "foo.ll.html" as an alias for "foo.html". */
-        unsigned int len;
-
-        len = strlen(req->pathname);
-        if (len < 6 || strcmp (req->pathname + len - 5, ".html"))
-            break;  /* does not end in ".html" */
-        if (len > 8 && req->pathname[len-8] == '.'
-            && req->pathname[len-7] >= 'a' && req->pathname[len-7] <= 'z'
-            && req->pathname[len-6] >= 'a' && req->pathname[len-6] <= 'z') {
-            /* The request was for a language dependent file.  Strip
-             * it and try the generic form. */
-            char save_name[8];
-
-            strcpy (save_name, req->pathname + len - 7);
-            strcpy (req->pathname + len - 7, "html");
-            data_fd = open(req->pathname, O_RDONLY);
-            if (data_fd == -1)
-                strcpy (req->pathname + len - 7, save_name);
-            break;
-        }
-        else if ( 0 ) {
-            /* Fixme: Other items to try from the list of accepted_languages */
-            data_fd = open(req->pathname, O_RDONLY);
-        }
-        else
-            break;
-    }
-
 
 #ifdef GUNZIP
     if (data_fd == -1 && errno == ENOENT) {
@@ -112,7 +478,7 @@ int init_get(request * req)
         memcpy(gzip_pathname, req->pathname, len);
         memcpy(gzip_pathname + len, ".gz", 3);
         gzip_pathname[len + 3] = '\0';
-        data_fd = open(gzip_pathname, O_RDONLY|O_LARGEFILE);
+        data_fd = open(gzip_pathname, O_RDONLY);
         if (data_fd != -1) {
             close(data_fd);
 
@@ -142,17 +508,30 @@ int init_get(request * req)
 #endif
 
     if (data_fd == -1) {
+
+
         log_error_doc(req);
         errno = saved_errno;
+	DEBUG(DEBUG_BOA) {
         perror("document open");
-
+        fprintf(stderr, "req->pathname=%s\n", (req->pathname ? req->pathname : "null"));
+	}
+#if 0
         if (saved_errno == ENOENT)
             send_r_not_found(req);
         else if (saved_errno == EACCES)
             send_r_forbidden(req);
         else
             send_r_bad_request(req);
-        return 0;
+#else
+#ifdef CONFIG_CMCC
+	send_redirect_perm(req,"index.html");
+#else
+	send_redirect_perm(req,"home.htm");
+#endif
+#endif
+
+	return 0;
     }
 
 #ifdef ACCESS_CONTROL
@@ -184,7 +563,7 @@ int init_get(request * req)
             char *host = server_name;
             unsigned int l2;
             char *port = NULL;
-            const char *prefix = hsts_header? "https://" : "http://";
+            const char *prefix = "http://";
             static unsigned int l3 = 0;
             static unsigned int l4 = 0;
 
@@ -192,7 +571,7 @@ int init_get(request * req)
                 l4 = strlen(prefix);
             }
             len = strlen(req->request_uri);
-            if (!port && server_port != 80 && !no_redirect_port) {
+            if (!port && server_port != 80) {
                 port = strdup(simple_itoa(server_port));
                 if (port == NULL) {
                     errno = ENOMEM;
@@ -213,7 +592,7 @@ int init_get(request * req)
             }
             l2 = strlen(host);
 
-            if (server_port != 80 && !no_redirect_port) {
+            if (server_port != 80) {
                 if (l4 + l2 + 1 + l3 + len + 1 > sizeof(buffer)) {
                     errno = ENOMEM;
                     boa_perror(req, "buffer not large enough for directory redirect");
@@ -280,12 +659,12 @@ int init_get(request * req)
         return 0;
     } else
     */
-    if (req->if_modified_since &&
+    /*if (req->if_modified_since &&
         !modified_since(&(statbuf.st_mtime), req->if_modified_since)) {
         send_r_not_modified(req);
         close(data_fd);
         return 0;
-    }
+    }*/
 
     req->filesize = statbuf.st_size;
     req->last_modified = statbuf.st_mtime;
@@ -466,8 +845,9 @@ int init_get(request * req)
 
 int process_get(request * req)
 {
-    off_t bytes_written;
-    volatile off_t bytes_to_write;
+//	printf("%s\n",__FUNCTION__);
+    int bytes_written;
+    volatile unsigned int bytes_to_write;
 
     if (req->method == M_HEAD) {
         return complete_response(req);
@@ -480,8 +860,48 @@ int process_get(request * req)
 
     if (setjmp(env) == 0) {
         handle_sigbus = 1;
-        bytes_written = write(req->fd, req->data_mem + req->ranges->start,
-                              bytes_to_write);
+#ifdef BOA_WITH_OPENSSL
+	if(req->ssl==NULL)
+#endif
+	{
+#ifdef BOA_WITH_MBEDTLS
+        if(req->mbedtls_client_fd.fd!=-1)
+        {
+            //bytes_written = mbedtls_ssl_write(&mbedtls_ssl_ctx, req->data_mem + req->ranges->start, bytes_to_write);
+        	int ret;
+            while( ( ret = mbedtls_ssl_write( &(req->mbedtls_ssl_ctx), req->data_mem + req->ranges->start, bytes_to_write ) ) <= 0 )
+            {
+                if( ret == MBEDTLS_ERR_NET_CONN_RESET )
+                {
+                    mbedtls_printf( " failed\n  ! peer closed the connection\n\n" );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+
+                if( ret != MBEDTLS_ERR_SSL_WANT_READ && ret != MBEDTLS_ERR_SSL_WANT_WRITE )
+                {
+                    mbedtls_printf( " failed\n  ! mbedtls_ssl_write returned %d\n\n", ret );
+                    mbedtls_net_free( &(req->mbedtls_client_fd) );
+                    mbedtls_ssl_free( &(req->mbedtls_ssl_ctx) );
+                    return 0;
+                }
+            }
+            bytes_written = ret;
+		}else
+#endif
+        {
+        	bytes_written = write(req->fd, req->data_mem + req->ranges->start,
+                	              bytes_to_write);
+	}
+        //printf("[%s:%d] write %d bytes\n", __FUNCTION__, __LINE__, bytes_written);
+	}
+#ifdef BOA_WITH_OPENSSL
+	else{
+		//printf("<%s:%d>SSL_write\n",__FUNCTION__,__LINE__);
+		bytes_written = SSL_write(req->ssl, req->data_mem + req->ranges->start, bytes_to_write);
+	}
+#endif
         handle_sigbus = 0;
         /* OK, SIGBUS **after** this point is very bad! */
     } else {
@@ -549,6 +969,11 @@ int get_dir(request * req, struct stat *statbuf)
     char pathname_with_index[MAX_PATH_LENGTH];
     int data_fd;
 
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+    if (strcmp("/web/", req->pathname)!=0)
+    	goto no_index_html;
+#endif
+
     if (directory_index) {      /* look for index.html first?? */
         unsigned int l1, l2;
 
@@ -567,7 +992,7 @@ int get_dir(request * req, struct stat *statbuf)
         memcpy(pathname_with_index, req->pathname, l1); /* doesn't copy NUL */
         memcpy(pathname_with_index + l1, directory_index, l2 + 1); /* does */
 
-        data_fd = open(pathname_with_index, O_RDONLY|O_LARGEFILE);
+        data_fd = open(pathname_with_index, O_RDONLY);
 
         if (data_fd != -1) {    /* user's index file */
             /* We have to assume that directory_index will fit, because
@@ -591,7 +1016,7 @@ int get_dir(request * req, struct stat *statbuf)
          * try index.html.gz
          */
         strcat(pathname_with_index, ".gz");
-        data_fd = open(pathname_with_index, O_RDONLY|O_LARGEFILE);
+        data_fd = open(pathname_with_index, O_RDONLY);
         if (data_fd != -1) {    /* user's index file */
             close(data_fd);
 
@@ -621,6 +1046,9 @@ int get_dir(request * req, struct stat *statbuf)
 #endif
     }
 
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+no_index_html:
+#endif
     /* only here if index.html, index.html.gz don't exist */
     if (dirmaker != NULL) {     /* don't look for index.html... maybe automake? */
         req->response_status = R_REQUEST_OK;
@@ -652,7 +1080,9 @@ static int get_cachedir_file(request * req, struct stat *statbuf)
 {
 
     char pathname_with_index[MAX_PATH_LENGTH];
+#ifndef HTTP_FILE_SERVER_SUPPORTED
     int data_fd;
+#endif
     time_t real_dir_mtime;
 
     real_dir_mtime = statbuf->st_mtime;
@@ -660,9 +1090,11 @@ static int get_cachedir_file(request * req, struct stat *statbuf)
      * include the NUL when calculating if the size is enough
      */
     snprintf(pathname_with_index, sizeof(pathname_with_index),
-             "%s/dir.%d." PRINTF_OFF_T_ARG, cachedir,
+             "%s/dir.%d.%ld", cachedir,
              (int) statbuf->st_dev, statbuf->st_ino);
-    data_fd = open(pathname_with_index, O_RDONLY|O_LARGEFILE);
+
+#ifndef HTTP_FILE_SERVER_SUPPORTED
+    data_fd = open(pathname_with_index, O_RDONLY);
 
     if (data_fd != -1) {        /* index cache */
 
@@ -675,10 +1107,17 @@ static int get_cachedir_file(request * req, struct stat *statbuf)
         close(data_fd);
         unlink(pathname_with_index); /* cache is stale, delete it */
     }
+#endif
+
     if (index_directory(req, pathname_with_index) == -1)
         return -1;
 
-    data_fd = open(pathname_with_index, O_RDONLY|O_LARGEFILE); /* Last chance */
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+	//directory page was not output as a file,
+	//it was directly output by req_format_write() instead
+	return 0;
+#else
+    data_fd = open(pathname_with_index, O_RDONLY); /* Last chance */
     if (data_fd != -1) {
         strcpy(req->request_uri, directory_index); /* for mimetype */
         fstat(data_fd, statbuf);
@@ -688,7 +1127,7 @@ static int get_cachedir_file(request * req, struct stat *statbuf)
 
     boa_perror(req, "re-opening dircache");
     return -1;                  /* Nothing worked. */
-
+#endif
 }
 
 /*
@@ -704,11 +1143,16 @@ static int get_cachedir_file(request * req, struct stat *statbuf)
 
 static int index_directory(request * req, char *dest_filename)
 {
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+    int bytes = 0;
+    extern int generate_directory_page(request *req, char *dest_filename);
+#else
     DIR *request_dir;
     FILE *fdstream;
     struct dirent *dirbuf;
-    off_t bytes = 0;
+    int bytes = 0;
     char *escname = NULL;
+#endif
 
     if (chdir(req->pathname) == -1) {
         if (errno == EACCES || errno == EPERM) {
@@ -721,6 +1165,29 @@ static int index_directory(request * req, char *dest_filename)
         return -1;
     }
 
+#ifdef HTTP_FILE_SERVER_SUPPORTED
+#ifdef HTTP_FILE_SERVER_HTM_UI
+		if(req->pathname &&
+			strcmp(req->pathname,"/web/")!=0 &&
+			req->pathname[strlen(req->pathname) - 1] == '/')
+		{
+			extern void formHttpFilePathRedirect(request *wp,char* http_C,char* http_O);
+			char* http_C=NULL,*http_O=NULL;
+			char * ptr=NULL;
+			if(ptr=strstr(req->client_stream,"C="))
+				http_C=ptr+strlen("C=");
+			if(ptr=strstr(req->client_stream,"O="))
+				http_O=ptr+strlen("O=");
+//			printf("%s:%d req->pathname=%s req->client_stream=%s http_C=%s http_O=%s\n",
+//		__FUNCTION__,__LINE__,req->pathname,req->client_stream,http_C,http_O);
+			formHttpFilePathRedirect(req,http_C,http_O);
+			chdir(server_root);
+			return 0;
+		}
+#else
+    bytes = generate_directory_page(req, dest_filename);
+#endif
+#else
     request_dir = opendir(".");
     if (request_dir == NULL) {
         int errno_save = errno;
@@ -768,9 +1235,9 @@ static int index_directory(request * req, char *dest_filename)
     bytes += fprintf(fdstream, "</PRE>\n\n</BODY>\n</HTML>\n");
 
     fclose(fdstream);
+#endif
 
-    if (chdir(server_root) == -1)
-        perror("chdir to server root failed");
+    chdir(server_root);
 
     req->filesize = bytes;      /* for logging transfer size */
     return 0;                   /* success */

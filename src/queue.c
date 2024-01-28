@@ -58,7 +58,10 @@ void block_request(request * req)
             BOA_FD_SET(req, req->data_fd, BOA_READ);
             break;
         case BODY_WRITE:
+// davidhsu	
+#if !defined(NEW_POST) || defined(BOA_CGI_SUPPORT)
             BOA_FD_SET(req, req->post_data_fd, BOA_WRITE);
+#endif
             break;
         default:
             BOA_FD_SET(req, req->fd, BOA_READ);
@@ -98,7 +101,10 @@ void ready_request(request * req)
             BOA_FD_CLR(req, req->data_fd, BOA_READ);
             break;
         case BODY_WRITE:
+// davidhsu			
+#if !defined(NEW_POST) || defined(BOA_CGI_SUPPORT)
             BOA_FD_CLR(req, req->post_data_fd, BOA_WRITE);
+#endif
             break;
         default:
             BOA_FD_CLR(req, req->fd, BOA_READ);
@@ -115,6 +121,13 @@ void ready_request(request * req)
 
 void dequeue(request ** head, request * req)
 {
+#ifdef BOA_WITH_MBEDTLS
+    if(head==&request_free && req->buffer)
+    {
+        free(req->buffer);
+        req->buffer = NULL;
+    }
+#endif
     if (*head == req)
         *head = req->next;
 
